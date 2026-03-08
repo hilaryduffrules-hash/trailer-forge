@@ -1,0 +1,184 @@
+# THE HEIST — Demo trailer for trailer-forge
+# Tests: shot presets, automated SFX, title cards, main title, black segments
+# Run: python3 trailer_forge.py preview  examples/the_heist.yaml
+#      python3 trailer_forge.py assemble examples/the_heist.yaml
+
+title: "THE HEIST"
+resolution: [1920, 1080]
+fps: 30
+color_grade: dark_thriller
+film_grain: true
+output: out/the_heist.mp4
+
+audio:
+  music: assets/music.mp3          # use the Impact Moderato music if present
+  voiceover: assets/heist_vo.mp3   # optional — skip if missing
+  music_vol: 0.40
+  voice_vol: 1.0
+  sfx: auto                        # enable automated sound design
+
+timeline:
+
+  # ── COLD OPEN ───────────────────────────────────────────────────────────────
+
+  - type: black
+    duration: 1.0
+
+  - type: title_card
+    duration: 2.5
+    fade_in: 0.5
+    fade_out: 0.3
+    lines:
+      - text: "BASED ON AN ACTUAL CRIME"
+        font: sans
+        size: 52
+        color: grey
+
+  - type: black
+    duration: 0.4
+
+  # Epic establishing — city at night
+  - type: veo_clip
+    preset: epic_establish
+    subject: "a vast city skyline glittering at night from a rooftop"
+    file: clips/city_night.mp4
+    trim: [0, 4]
+    fade_in: 0.5
+    fade_out: 0.0
+
+  - type: black
+    duration: 0.3
+
+  # ── ACT ONE — THE SETUP ─────────────────────────────────────────────────────
+
+  - type: title_card
+    duration: 2.0
+    lines:
+      - text: "THEY HAD ONE SHOT"
+        font: bebas
+        size: 110
+        color: white
+
+  - type: black
+    duration: 0.25
+
+  # Thriller reveal — briefcase being opened
+  - type: veo_clip
+    preset: thriller_reveal
+    subject: "leather briefcase being opened to reveal stacks of cash"
+    file: clips/briefcase.mp4
+    trim: [0, 3]
+    fade_in: 0.3
+    fade_out: 0.3
+
+  - type: black
+    duration: 0.25
+
+  # Drama dialogue — the team planning
+  - type: veo_clip
+    preset: drama_dialogue
+    subject: "three people leaning over blueprints spread on a table under a single lamp"
+    file: clips/planning.mp4
+    trim: [0, 4]
+    fade_in: 0.3
+    fade_out: 0.3
+
+  # ── ACT TWO — THE COMPLICATION ──────────────────────────────────────────────
+
+  - type: black
+    duration: 0.25
+
+  - type: title_card
+    duration: 2.0
+    lines:
+      - text: "ONE PROBLEM"
+        font: bebas
+        size: 140
+        color: white
+
+  - type: black
+    duration: 0.25
+
+  - type: title_card
+    duration: 2.5
+    lines:
+      - text: "NOBODY TOLD THE GUARDS"
+        font: bebas
+        size: 85
+        color: gold
+
+  - type: black
+    duration: 0.3
+
+  # Thriller chase — frantic hallway run
+  - type: veo_clip
+    preset: thriller_chase
+    subject: "a figure in dark clothing sprinting through a marble corridor"
+    file: clips/corridor_run.mp4
+    trim: [0, 3.5]
+    fade_in: 0.2
+    fade_out: 0.2
+
+  - type: black
+    duration: 0.2
+
+  # Dread — security guard turning to look at camera
+  - type: veo_clip
+    preset: thriller_dread
+    subject: "a security guard slowly turning around in a control room full of monitors"
+    file: clips/guard_turn.mp4
+    trim: [0, 3]
+    fade_in: 0.2
+    fade_out: 0.3
+
+  # ── ACT THREE — THE TRAILER MONEY SHOTS ─────────────────────────────────────
+
+  - type: black
+    duration: 0.3
+
+  - type: title_card
+    duration: 1.5
+    lines:
+      - text: "THIS SUMMER"
+        font: sans
+        size: 60
+        color: grey
+
+  - type: black
+    duration: 0.2
+
+  # Commercial energy — getaway car tearing through streets
+  - type: veo_clip
+    preset: commercial_energy
+    subject: "a black sports car drifting through rain-slicked city streets at night"
+    file: clips/getaway.mp4
+    trim: [0, 3]
+    fade_in: 0.2
+    fade_out: 0.2
+
+  - type: black
+    duration: 0.2
+
+  # Drama isolation — lone figure on rooftop
+  - type: veo_clip
+    preset: drama_isolation
+    subject: "a lone figure standing on the edge of a rooftop looking over the city"
+    file: clips/rooftop_lone.mp4
+    trim: [0, 3.5]
+    fade_in: 0.3
+    fade_out: 0.5
+
+  # ── MAIN TITLE ──────────────────────────────────────────────────────────────
+
+  - type: black
+    duration: 0.5
+
+  - type: main_title
+    title: "HEIST"
+    tagline: "everyone has a plan until the vault door opens"
+    duration: 5.0
+    fade_in: 1.0
+    fade_out: 0.5
+
+  - type: black
+    duration: 1.0
