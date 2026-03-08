@@ -243,9 +243,9 @@ def generate_manifest(clip: dict, index: int, video_path: str,
     Write a trailer-forge YAML manifest for a single clip.
     Returns the path to the written manifest.
     """
-    if fmt == "vertical":
+    if fmt in ("vertical", "vertical_blur"):
         resolution = [1080, 1920]
-        crop_note  = "9:16 vertical (center crop)"
+        crop_note  = "9:16 vertical (pillarbox, dark bg)" if fmt == "vertical" else "9:16 vertical (blurred bg)"
     else:
         resolution = [1920, 1080]
         crop_note  = "16:9 horizontal"
@@ -333,16 +333,53 @@ def assemble_clip(clip: dict, index: int, video_path: str,
     duration = clip["duration"]
 
     if fmt == "vertical":
-        # 9:16 vertical — center crop from source
-        # Scale to fit height first, then crop to 9:16 width
+        # 9:16 vertical — pillarbox: full frame preserved, dark near-black bg
+        # Better than centre crop — keeps whole subject/frame visible
         W, H = 1080, 1920
-        # crop_w = H * 9 / 16 = 1080, so: scale to iw*H/ih then crop
         vf = (
-            f"scale=-2:{H},"                          # scale to target height, keep AR
-            f"crop={W}:{H}:(iw-{W})/2:(ih-{H})/2,"  # center crop to 9:16
+            f"scale={W}:{H}:force_original_aspect_ratio=decrease,"
+            f"pad={W}:{H}:(ow-iw)/2:(oh-ih)/2:color=#1a1a1a,"
             f"fade=t=in:st=0:d=0.4,"
             f"fade=t=out:st={max(0, duration-0.4):.3f}:d=0.4"
         )
+        cmd = (
+            f'ffmpeg -y '
+            f'-ss {t_start:.3f} '
+            f'-i "{video_path}" '
+            f'-t {duration:.3f} '
+            f'-vf "{vf}" '
+            f'-c:v libx264 -preset fast -crf 23 -pix_fmt yuv420p '
+            f'-c:a aac -b:a 128k '
+            f'-movflags +faststart '
+            f'"{out_path}"'
+        )
+
+    elif fmt == "vertical_blur":
+        # 9:16 vertical — blurred background: source frame blurred+stretched as bg,
+        # original at full width centred on top. Popular "podcast/talking head" look.
+        W, H = 1080, 1920
+        fc = (
+            f"[0:v]trim=start={t_start:.3f}:duration={duration:.3f},setpts=PTS-STARTPTS,"
+            f"scale={W}:{H}:force_original_aspect_ratio=increase,"
+            f"crop={W}:{H},boxblur=20:5,"
+            f"fade=t=in:st=0:d=0.4,fade=t=out:st={max(0,duration-0.4):.3f}:d=0.4[bg];"
+            f"[0:v]trim=start={t_start:.3f}:duration={duration:.3f},setpts=PTS-STARTPTS,"
+            f"scale={W}:-2:force_original_aspect_ratio=decrease,"
+            f"fade=t=in:st=0:d=0.4,fade=t=out:st={max(0,duration-0.4):.3f}:d=0.4[fg];"
+            f"[bg][fg]overlay=(W-w)/2:(H-h)/2[v]"
+        )
+        cmd = (
+            f'ffmpeg -y '
+            f'-i "{video_path}" '
+            f'-filter_complex "{fc}" '
+            f'-map "[v]" -map "0:a" '
+            f'-t {duration:.3f} '
+            f'-c:v libx264 -preset fast -crf 23 -pix_fmt yuv420p '
+            f'-c:a aac -b:a 128k '
+            f'-movflags +faststart '
+            f'"{out_path}"'
+        )
+
     else:
         # 16:9 horizontal — standard scale with letterbox
         W, H = 1920, 1080
@@ -352,18 +389,17 @@ def assemble_clip(clip: dict, index: int, video_path: str,
             f"fade=t=in:st=0:d=0.4,"
             f"fade=t=out:st={max(0, duration-0.4):.3f}:d=0.4"
         )
-
-    cmd = (
-        f'ffmpeg -y '
-        f'-ss {t_start:.3f} '
-        f'-i "{video_path}" '
-        f'-t {duration:.3f} '
-        f'-vf "{vf}" '
-        f'-c:v libx264 -preset fast -crf 23 -pix_fmt yuv420p '
-        f'-c:a aac -b:a 128k '
-        f'-movflags +faststart '
-        f'"{out_path}"'
-    )
+        cmd = (
+            f'ffmpeg -y '
+            f'-ss {t_start:.3f} '
+            f'-i "{video_path}" '
+            f'-t {duration:.3f} '
+            f'-vf "{vf}" '
+            f'-c:v libx264 -preset fast -crf 23 -pix_fmt yuv420p '
+            f'-c:a aac -b:a 128k '
+            f'-movflags +faststart '
+            f'"{out_path}"'
+        )
 
     log(f"Assembling clip_{index:02d} ({fmt}, {duration:.0f}s)…")
     run(cmd)
@@ -388,7 +424,8 @@ def run_clipper(url: str, top_n: int = 3, fmt: str = "vertical",
     print(f"\n✂️  CLIPPER PIPELINE")
     print(f"   URL:    {url}")
     print(f"   Top:    {top_n} clips")
-    print(f"   Format: {fmt} ({'9:16' if fmt == 'vertical' else '16:9'})")
+    _fmt_label = {"vertical": "9:16 pillarbox", "vertical_blur": "9:16 blur bg", "horizontal": "16:9"}.get(fmt, fmt)
+    print(f"   Format: {fmt} ({_fmt_label})")
     print(f"   Out:    {out_dir}/\n")
 
     # 1. Download
@@ -423,8 +460,8 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser(description="Clipper — YouTube to social clips")
     ap.add_argument("url",              help="YouTube URL")
     ap.add_argument("--top",    type=int, default=3,          help="Number of clips (default: 3)")
-    ap.add_argument("--format", choices=["vertical","horizontal"], default="vertical",
-                    help="Output format (default: vertical 9:16)")
+    ap.add_argument("--format", choices=["vertical","vertical_blur","horizontal"], default="vertical",
+                    help="Output format: vertical (pillarbox dark bg), vertical_blur (blurred bg), horizontal (default: vertical)")
     ap.add_argument("--out",    default="out/clips",          help="Output directory")
     args = ap.parse_args()
     run_clipper(args.url, top_n=args.top, fmt=args.format, out_dir=Path(args.out))
