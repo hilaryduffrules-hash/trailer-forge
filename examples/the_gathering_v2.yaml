@@ -1,0 +1,208 @@
+# THE GATHERING — v2 (frame-perfect timing)
+# Every segment duration calculated to hit exact Whisper word timestamps.
+# VO key sync points:
+#   4.10s "wonders"    → "SOME BUILD WONDERS" card
+#   5.40s "trebuchet"  → "SOME GET TREBUCHET'D" card
+#   7.34s "best"       → "BY THEIR BEST FRIEND" card
+#   7.94s "sitting"    → "SITTING THREE FEET AWAY" card
+#  11.46s "one night"  → "ONE NIGHT / ONE LAN PARTY" card
+#  13.96s "legendary"  → "ONE LEGENDARY GAME" card
+#  16.80s "economy"    → veo_04 medieval siege (VO plays OVER footage)
+#  21.20s "one"        → "ONE." card
+#  21.92s "more"       → "MORE." card
+#  22.72s "game"       → "GAME." card
+#  23.58s "gathering"  → black (dramatic beat before title reveal)
+
+output: out/the_gathering_v2.mp4
+resolution: [1920, 1080]
+fps: 24
+film_grain: true
+color_grade: teal_orange
+
+audio:
+  voiceover: assets/voiceover.mp3
+  voiceover_vol: 1.0
+  music: assets/music.mp3  # replace with your music file
+  music_vol: 0.18
+
+timeline:
+
+  # 0.00s ─────────────────────────────────────────────────────────────────────
+  - type: black
+    duration: 0.2
+
+  # 0.20s — "Every civilization begins with a single villager." (VO 0.0–3.02s)
+  - type: title_card
+    duration: 3.10
+    lines:
+      - text: "EVERY CIVILIZATION"
+        font: bebas
+        size: 90
+        color: "#e8d5a3"
+      - text: "BEGINS WITH A SINGLE VILLAGER."
+        font: bebas
+        size: 52
+        color: "#c4a96b"
+
+  # 3.30s — veo_01: YOUR setup, zooming into AoE2 screen
+  #          VO breath between sentences; "wonders" word lands at 4.10s
+  - type: veo_clip
+    file: assets/veo_01_lan_zoomin.mp4
+    trim: [0, 0.80]
+    fade_in: 0.15
+    fade_out: 0.15
+
+  # 4.10s ✓ — "wonders" — SOME BUILD WONDERS card
+  - type: title_card
+    duration: 1.30
+    lines:
+      - text: "SOME BUILD WONDERS."
+        font: bebas
+        size: 84
+        color: "#e8d5a3"
+
+  # 5.40s ✓ — "trebuchet" — TREBUCHET'D card
+  - type: title_card
+    duration: 1.94
+    lines:
+      - text: "SOME GET TREBUCHET'D"
+        font: bebas
+        size: 80
+        color: "#ffffff"
+      - text: "INTO OBLIVION."
+        font: bebas
+        size: 72
+        color: "#cc3333"
+
+  # 7.34s ✓ — "best friend" card
+  - type: title_card
+    duration: 0.60
+    lines:
+      - text: "BY THEIR BEST FRIEND."
+        font: bebas
+        size: 76
+        color: "#e8d5a3"
+
+  # 7.94s ✓ — "sitting" card
+  - type: title_card
+    duration: 1.36
+    lines:
+      - text: "SITTING THREE FEET AWAY."
+        font: bebas
+        size: 66
+        color: "#888888"
+
+  # 9.30s — veo_02: AoE2 gameplay close-up
+  #          VO: "This is the story of one night, one LAN party..." plays over footage
+  - type: veo_clip
+    file: assets/veo_02_aoe2_battle.mp4
+    trim: [0, 2.16]
+    fade_in: 0.3
+    fade_out: 0.2
+
+  # 11.46s ✓ — "one night" card
+  - type: title_card
+    duration: 2.50
+    lines:
+      - text: "ONE NIGHT."
+        font: bebas
+        size: 104
+        color: "#e8d5a3"
+      - text: "ONE LAN PARTY."
+        font: bebas
+        size: 68
+        color: "#c4a96b"
+
+  # 13.96s ✓ — "legendary" card
+  - type: title_card
+    duration: 2.54
+    lines:
+      - text: "ONE LEGENDARY GAME."
+        font: bebas
+        size: 80
+        color: "#ffffff"
+
+  # 16.50s — brief black (VO: "...Age of Empires Two." — pause before battle cry)
+  - type: black
+    duration: 0.30
+
+  # 16.80s ✓ — veo_04 medieval siege
+  #             VO: "Build your economy. Raise your army. Destroy everything they love."
+  #             plays OVER the siege footage — no title cards — maximally cinematic
+  - type: veo_clip
+    file: assets/veo_04_medieval_siege.mp4
+    trim: [0, 3.78]
+    fade_in: 0.3
+    fade_out: 0.2
+
+  # 20.58s — veo_03 keyboard: hard impact flash before ONE/MORE/GAME
+  - type: veo_clip
+    file: assets/veo_03_keyboard_hands.mp4
+    trim: [0, 0.62]
+    fade_in: 0.08
+    fade_out: 0.08
+
+  # 21.20s ✓ — "ONE."
+  - type: title_card
+    duration: 0.72
+    lines:
+      - text: "ONE."
+        font: bebas
+        size: 148
+        color: "#ffffff"
+
+  # 21.92s ✓ — "MORE."
+  - type: title_card
+    duration: 0.80
+    lines:
+      - text: "MORE."
+        font: bebas
+        size: 148
+        color: "#ffffff"
+
+  # 22.72s ✓ — "GAME."
+  - type: title_card
+    duration: 0.86
+    lines:
+      - text: "GAME."
+        font: bebas
+        size: 148
+        color: "#cc3333"
+
+  # 23.58s ✓ — "gathering" spoken → black dramatic beat before title reveal
+  - type: black
+    duration: 0.50
+
+  # 24.08s — main title (VO: "This summer... someone's getting rushed." plays over title)
+  - type: title_card
+    duration: 2.20
+    lines:
+      - text: "T H E"
+        font: bebas
+        size: 58
+        color: "#c4a96b"
+      - text: "GATHERING"
+        font: bebas
+        size: 144
+        color: "#e8d5a3"
+
+  # 26.28s — black beat
+  - type: black
+    duration: 0.30
+
+  # 26.58s — punchline (VO done; this appears as the final button)
+  - type: title_card
+    duration: 2.50
+    lines:
+      - text: "This summer..."
+        font: bebas
+        size: 52
+        color: "#888888"
+      - text: "SOMEONE'S GETTING RUSHED."
+        font: bebas
+        size: 72
+        color: "#ffffff"
+
+  # 29.08s — fade to black
+  - type: black
+    duration: 2.50

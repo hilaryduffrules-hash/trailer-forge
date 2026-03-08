@@ -119,28 +119,55 @@ See [`docs/YAML_REFERENCE.md`](docs/YAML_REFERENCE.md) for the full spec.
 
 ## Perfect Sync with Whisper
 
-Getting title cards to appear exactly when the narrator says the phrase is the hard part.
-trailer-forge solves this with Whisper word-level timestamps:
+Getting title cards to cut in **exactly when the narrator says the word** separates a real
+trailer from a slideshow with music. The method: every segment's duration is calculated so the
+**cumulative sum of all preceding segments equals the Whisper timestamp** for the target word.
 
 ```bash
-# 1. Get exact word timestamps from your voiceover
+# 1. Transcribe your voiceover with word-level timestamps
 whisper assets/voiceover.mp3 --model small --word_timestamps True \
   --output_format json --output_dir whisper_out
 
-# 2. Print word timings
-python3 -c "
-import json
-data = json.load(open('whisper_out/voiceover.json'))
-for s in data['segments']:
-    for w in s.get('words', []):
-        print(f\"{w['start']:6.2f}s  {w['word']}\")
-"
+# 2. See all word timestamps
+python3 tools/sync_yaml.py whisper_out/voiceover.json
 
-# 3. Set each segment duration so its cumulative sum = that word's timestamp
-# 4. Verify with the diagnostic subtitle burn (see docs/SYNC_GUIDE.md)
+# 3. Compute segment durations for your sync cues + get YAML stubs
+python3 tools/sync_yaml.py whisper_out/voiceover.json \
+    --offset 0.2 \
+    --cues \
+        "wonders:WONDERS CARD:SOME BUILD WONDERS." \
+        "trebuchet:TREBUCHET:SOME GET TREBUCHET'D" \
+        "night:ONE NIGHT:ONE NIGHT. ONE LAN PARTY." \
+        "legendary:LEGENDARY:ONE LEGENDARY GAME." \
+    --yaml
 ```
 
-See [`docs/SYNC_GUIDE.md`](docs/SYNC_GUIDE.md) for the full method.
+Output shows exact durations for each preceding segment and YAML stubs ready to paste:
+
+```
+   START     DUR    ENDS    SYNC              SEGMENT
+------------------------------------------------------------------------
+   0.200s  3.100s  3.300s  ← 'wonders'       EVERY CIVILIZATION card
+   3.300s  0.800s  4.100s  ← 'wonders' ✓     veo_01 flash
+   4.100s  1.300s  5.400s  ← 'trebuchet' ✓   SOME BUILD WONDERS.
+   5.400s  1.940s  7.340s  ← 'best' ✓        SOME GET TREBUCHET'D
+```
+
+**Key rule:** every `black` segment counts toward the cumulative sum.  
+Verify your full timeline before assembling — see [`docs/SYNC_GUIDE.md`](docs/SYNC_GUIDE.md).
+
+### Segment design patterns
+
+| Pattern | When to use | How |
+|---------|-------------|-----|
+| **Card-on-word** | Text card appears on spoken word | Preceding durations sum to word timestamp |
+| **Video + spoken VO** | Action footage with narration over it | Clip duration = length of that VO section |
+| **Percussive single-word** | ONE. / MORE. / GAME. beats | Duration = gap between consecutive spoken words |
+| **Impact flash cut** | Visual punctuation between cards | `trim: [0, 0.5]`, `fade_in: 0.08, fade_out: 0.08` |
+| **Title reveal beat** | Main title with dramatic weight | Spoken word → 0.5s black → title card |
+
+See [`examples/the_gathering_v2.yaml`](examples/the_gathering_v2.yaml) for a complete
+8-sync-point example with all patterns applied.
 
 ## Recommended Voiceover
 
@@ -349,7 +376,8 @@ trailer-forge/
 ├── trailer_forge.py          # Main CLI (~1500 lines)
 ├── tools/
 │   ├── clipper.py            # YouTube → social clips pipeline
-│   └── chapters.py           # YouTube chapter marker generator
+│   ├── chapters.py           # YouTube chapter marker generator
+│   └── sync_yaml.py          # Whisper word-timestamp → YAML duration calculator
 ├── canvas_renderer/
 │   ├── render_card.js        # Node.js canvas renderer
 │   └── package.json
@@ -359,7 +387,9 @@ trailer-forge/
 ├── sfx_map.yaml              # Automated SFX sound design mappings
 ├── examples/
 │   ├── simple.yaml           # Minimal example
-│   └── the_heist.yaml        # Full demo with presets + SFX
+│   ├── the_heist.yaml        # Full demo with presets + SFX
+│   ├── the_heist_broadcast.yaml  # Broadcast package example (colour bars, countdown)
+│   └── the_gathering_v2.yaml    # Frame-perfect sync example (8 Whisper cues, Veo clips)
 └── docs/
     ├── YAML_REFERENCE.md
     ├── SYNC_GUIDE.md
