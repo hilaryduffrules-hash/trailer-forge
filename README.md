@@ -147,6 +147,72 @@ See [`docs/SYNC_GUIDE.md`](docs/SYNC_GUIDE.md) for the full method.
 ElevenLabs **"David — Epic Movie Trailer"** (voice ID: `FF7KdobWPaiR0vkcALHF`)  
 Settings: `stability=0.45`, `similarity_boost=0.90`, `style=0.85`, `speaker_boost=True`
 
+## Clipper — YouTube to Social Clips
+
+Clipper is a one-command pipeline that takes any YouTube URL and produces
+short-form, social-ready clips (vertical 9:16 for Nostr/Reels/TikTok, max 60s each).
+
+```
+YouTube URL → yt-dlp download → Whisper transcription → clip detection → ffmpeg assembly → out/clips/
+```
+
+### Quick start
+
+```bash
+# Extract top 3 vertical clips (default)
+python3 trailer_forge.py clip "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+
+# Extract top 5 horizontal clips
+python3 trailer_forge.py clip "https://youtu.be/dQw4w9WgXcQ" --top 5 --format horizontal
+
+# Custom output directory
+python3 trailer_forge.py clip "https://youtu.be/..." --top 3 --out /tmp/my_clips
+```
+
+### How clip detection works
+
+Clipper scores every 45-second sliding window of the transcript using:
+- **Word density** — windows with more speech get higher scores
+- **Sentence completeness** — windows that end on complete sentences score better
+
+The top N non-overlapping windows are selected and assembled. This means you get
+the most information-dense, cleanly bounded moments from the video — not arbitrary cuts.
+
+### Output
+
+Each clip produces two files:
+```
+out/clips/
+  clip_01.mp4   ← assembled clip (vertical 9:16 or horizontal 16:9)
+  clip_01.yaml  ← trailer-forge manifest (for further editing/remixing)
+  clip_02.mp4
+  clip_02.yaml
+  ...
+```
+
+The YAML manifests are fully compatible with `trailer_forge.py assemble` — you can
+open one, add title cards or color grades, and re-assemble.
+
+### Requirements
+
+| Tool | Purpose | Install |
+|------|---------|---------|
+| `yt-dlp` | YouTube download | `pip install yt-dlp` |
+| `whisper` | Local transcription | `pip install openai-whisper` |
+| `ffmpeg` | Video assembly | `sudo apt install ffmpeg` |
+
+### Options
+
+```
+python3 trailer_forge.py clip <youtube_url> [options]
+
+  --top N           Number of clips to extract (default: 3)
+  --format FORMAT   vertical (9:16) or horizontal (16:9) (default: vertical)
+  --out DIR         Output directory (default: out/clips)
+```
+
+---
+
 ## Compress for Sharing
 
 ```bash

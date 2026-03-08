@@ -895,14 +895,21 @@ commands:
         """
     )
     p.add_argument("command",
-                   choices=["build","assemble","gen-clips","preview","deliver","export-srt"])
-    p.add_argument("manifest",
-                   help="Trailer YAML manifest, or video file path for deliver, or Whisper JSON for export-srt")
+                   choices=["build","assemble","gen-clips","preview","deliver","export-srt","clip"])
+    p.add_argument("manifest", nargs="?",
+                   help="Trailer YAML manifest, video path (deliver), Whisper JSON (export-srt), or YouTube URL (clip)")
     p.add_argument("--targets", nargs="+", default=["youtube", "telegram"],
                    metavar="PLATFORM",
                    help=f"Delivery targets (default: youtube telegram). Options: {', '.join(PLATFORM_SPECS)}")
     p.add_argument("--output", default="output.srt",
                    help="Output SRT path (for export-srt command)")
+    # clip subcommand options
+    p.add_argument("--top", type=int, default=3,
+                   help="[clip] Number of clips to extract (default: 3)")
+    p.add_argument("--format", choices=["vertical", "horizontal"], default="vertical",
+                   help="[clip] Output format — vertical=9:16, horizontal=16:9 (default: vertical)")
+    p.add_argument("--out", default="out/clips",
+                   help="[clip] Output directory for assembled clips (default: out/clips)")
     args = p.parse_args()
 
     if   args.command == "preview":    preview(args.manifest)
@@ -911,3 +918,15 @@ commands:
     elif args.command == "gen-clips":  assemble(args.manifest, generate_missing=True)
     elif args.command == "deliver":    deliver(args.manifest, targets=args.targets)
     elif args.command == "export-srt": export_srt(args.manifest, args.output)
+    elif args.command == "clip":
+        if not args.manifest:
+            p.error("'clip' requires a YouTube URL as the second argument")
+        # Import clipper from tools/ directory alongside this script
+        sys.path.insert(0, str(SCRIPT_DIR / "tools"))
+        from clipper import run_clipper
+        run_clipper(
+            url     = args.manifest,
+            top_n   = args.top,
+            fmt     = args.format,
+            out_dir = Path(args.out),
+        )
