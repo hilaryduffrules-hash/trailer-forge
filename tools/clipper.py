@@ -567,7 +567,7 @@ def assemble_clip(clip: dict, index: int, video_path: str,
 
 # ── Main pipeline entry point ─────────────────────────────────────────────────
 
-def run_clipper(url: str, top_n: int = 3, fmt: str = "vertical",
+def run_clipper(url: str, top_n: int = 3, fmt: str = "vertical_blur",
                 out_dir: Path = None) -> List[Path]:
     """
     Full Clipper pipeline: download → transcribe → detect → manifest → assemble.
@@ -616,8 +616,8 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser(description="Clipper — YouTube to social clips")
     ap.add_argument("url",              help="YouTube URL")
     ap.add_argument("--top",    type=int, default=3,          help="Number of clips (default: 3)")
-    ap.add_argument("--format", choices=["vertical","vertical_blur","horizontal"], default="vertical",
-                    help="Output format: vertical (pillarbox dark bg), vertical_blur (blurred bg), horizontal (default: vertical)")
+    ap.add_argument("--format", choices=["vertical","vertical_blur","horizontal"], default="vertical_blur",
+                    help="Output format: vertical_blur (blurred bg, default), vertical (pillarbox dark bg), horizontal")
     ap.add_argument("--out",    default="out/clips",          help="Output directory")
     args = ap.parse_args()
     run_clipper(args.url, top_n=args.top, fmt=args.format, out_dir=Path(args.out))
