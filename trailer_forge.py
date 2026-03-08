@@ -59,6 +59,12 @@ FONT_SANS = _find_font(
     "/Library/Fonts/Arial Bold.ttf",
     "/Windows/Fonts/arialbd.ttf",
 )
+FONT_SERIF = _find_font(
+    SCRIPT_DIR / "fonts" / "CormorantGaramond-Light.ttf",
+    "/usr/share/fonts/truetype/cormorant/CormorantGaramond-Light.ttf",
+    "/usr/share/fonts/truetype/liberation/LiberationSerif-Regular.ttf",
+    "/usr/share/fonts/truetype/dejavu/DejaVuSerif.ttf",
+)
 CANVAS_RENDERER = SCRIPT_DIR / "canvas_renderer" / "render_card.js"
 
 # ── Constants ─────────────────────────────────────────────────────────────────
@@ -396,7 +402,12 @@ def build_sfx_mix(timeline, base_dir, total_dur, work_dir, grade="dark_thriller"
 
 # ── Font loading ───────────────────────────────────────────────────────────────
 def load_font(family, size):
-    path = FONT_BEBAS if family == "bebas" else FONT_SANS
+    if family == "bebas":
+        path = FONT_BEBAS
+    elif family in ("serif", "garamond", "cormorant"):
+        path = FONT_SERIF
+    else:
+        path = FONT_SANS
     if path and Path(path).exists():
         try:
             return ImageFont.truetype(path, size)

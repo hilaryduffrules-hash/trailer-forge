@@ -1,54 +1,146 @@
 # A24 STYLE — Arthouse / Slow Burn
-# Philosophy: atmosphere over plot. Mystery over explanation. Feel it before you understand it.
-# THE MOVE: cut on silence, not on the music beat. Beautiful music over disturbing imagery.
-# Text: film title only, at the very end. Silence is a tool — use more than feels comfortable.
+# Validated: Titanfall 2 birthday trailer test (2026-03-08)
+#
+# NotebookLM research confirmed:
+# - NO voiceover. Ever. The footage speaks.
+# - Cut on SILENCE not the beat. The jarring disconnect IS the point.
+# - Beautiful music with "wrong" emotional register (quiet piano over epic footage)
+# - Single building instrument — cello, piano, voice. Not orchestral.
+# - Silence is a tool. Use it more than feels comfortable.
+# - 95% video, 5% text. Title only at the very end.
+# - Film grain always on.
+# - HIGH CONTRAST, desaturated or pushed color palette.
+#
+# Typography rule: NEVER Bebas (that's gaming/blockbuster).
+# Use serif light font (Cormorant Garamond, Garamond, Palatino).
+# Small, restrained, white or warm off-white. Let it whisper.
+#
+# Structure that works (validated):
+# 8 clips × 4-6s each = ~40s footage
+# Max 0.5s black between clips (not 4s — that was wrong)
+# 1.5s black before title cards (dramatic beat, not a pause)
+# 3 title cards only: dedication → title → location/CTA
+# Total: ~60s
+#
+# Music: Kevin MacLeod "At Rest" (free, CC) — sparse piano, melancholic
+# https://incompetech.com/music/royalty-free/index.html?isrc=USUAN1100475
 
 style: a24
-film_grain: true            # always on for A24
-color_grade: teal_orange    # pushed, slightly desaturated
+film_grain: true
+color_grade: teal_orange    # pushed contrast, slightly desaturated
 
 audio:
-  voiceover_vol: 0.0        # NO voiceover — ever
-  music_vol: 0.6            # music is subversive, not triumphant
+  music: assets/music_ambient.mp3    # sparse piano — "At Rest" or similar
+  music_vol: 0.70                    # let it fill the silence
+  # NO voiceover key. Omit entirely.
 
 timeline:
+
+  # Open in darkness — brief (1.5s max)
   - type: black
-    duration: 2.5            # hold the black. make them wait.
+    duration: 1.5
 
+  # CLIP 1 — Establish the world. Slow fade in. Hard cut out.
   - type: veo_clip
-    file: clips/atmosphere.mp4   # beautiful but slightly wrong
-    trim: [0, 6.0]
-    fade_in: 1.5
-    fade_out: 0.0            # hard cut — the jarring disconnect IS the point
+    file: assets/clip_01_establish.mp4
+    trim: [0, 6.5]
+    fade_in: 1.5              # slow in — the A24 move
+    fade_out: 0.0             # hard cut — unsettling
 
+  # CLIP 2 — The antagonist/force. No gap. Immediate.
+  - type: veo_clip
+    file: assets/clip_02_force.mp4
+    trim: [0, 5.5]
+    fade_in: 0.0
+    fade_out: 0.0
+
+  # 0.5s silence — cut on silence not the beat
   - type: black
-    duration: 1.2            # silence between shots
+    duration: 0.5
 
+  # CLIP 3 — Movement/action. Someone going somewhere.
   - type: veo_clip
-    file: clips/reveal_slow.mp4  # slow reveal — hold it longer than comfortable
+    file: assets/clip_03_movement.mp4
+    trim: [0, 4.5]
+    fade_in: 0.0
+    fade_out: 0.0
+
+  # CLIP 4 — The intimate moment. The bond or relationship.
+  - type: veo_clip
+    file: assets/clip_04_intimate.mp4
+    trim: [0, 4.5]
+    fade_in: 0.0
+    fade_out: 0.0
+
+  # 0.5s silence
+  - type: black
+    duration: 0.5
+
+  # CLIP 5 — Reflection or interiority. Character facing inward.
+  - type: veo_clip
+    file: assets/clip_05_reflection.mp4
     trim: [0, 5.0]
     fade_in: 0.0
     fade_out: 0.0
 
-  - type: black
-    duration: 0.6
-
+  # CLIP 6 — The destination or beacon. Where they're going.
   - type: veo_clip
-    file: clips/wrong_thing.mp4  # the thing that isn't right
-    trim: [0, 3.5]
+    file: assets/clip_06_beacon.mp4
+    trim: [0, 5.0]
     fade_in: 0.0
     fade_out: 0.0
 
-  - type: black
-    duration: 4.0            # the long silence before title
+  # CLIP 7 — Isolation before the gathering. The before.
+  - type: veo_clip
+    file: assets/clip_07_isolation.mp4
+    trim: [0, 6.0]
+    fade_in: 0.0
+    fade_out: 0.0
 
+  # CLIP 8 — Together. The answer to clip 7. Slow fade to black.
+  - type: veo_clip
+    file: assets/clip_08_together.mp4
+    trim: [0, 6.0]
+    fade_in: 0.0
+    fade_out: 1.5             # slow fade — let it land
+
+  # Pre-title hold (1.5s max — not the 4.5s mistake)
+  - type: black
+    duration: 1.5
+
+  # CARD 1 — Dedication / personal hook. Small, warm, intimate.
   - type: title_card
-    duration: 5.0
+    duration: 3.0
     lines:
-      - text: "FILM TITLE"
-        font: bebas
-        size: 84
-        color: "#e4e4e4"     # not pure white — slightly aged
+      - text: "FOR [NAME]."
+        font: serif            # Cormorant Garamond Light — not Bebas
+        size: 44
+        color: "#d4bfa0"       # warm cream — personal
 
   - type: black
+    duration: 0.6
+
+  # CARD 2 — Main title. Clean white. Tracked out.
+  - type: title_card
+    duration: 4.0
+    lines:
+      - text: "FILM  TITLE"    # double-space for natural tracking
+        font: serif
+        size: 96
+        color: "#f0f0f0"       # near-white, not pure
+
+  - type: black
+    duration: 0.6
+
+  # CARD 3 — CTA / location. Understated. Gray.
+  - type: title_card
     duration: 3.0
+    lines:
+      - text: "LOCATION."
+        font: serif
+        size: 40
+        color: "#888888"       # quiet — this is the invitation
+
+  # Final hold
+  - type: black
+    duration: 2.5

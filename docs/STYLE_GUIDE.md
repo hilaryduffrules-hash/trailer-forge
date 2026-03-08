@@ -178,84 +178,143 @@ timeline:
 
 **Signature examples:** Midsommar, Hereditary, Everything Everywhere, Past Lives trailers
 
+**Validated:** Titanfall 2 birthday trailer test (2026-03-08) — 8 Veo clips, 3 text cards, 60s total.
+
 ### Philosophy
 Atmosphere over plot. Mystery over explanation. The audience should feel *unsettled*
 before they understand why. Never show the full monster. Never explain the twist.
 Let silence do work. Let wrong-feeling music do work.
 
-### Structure
+### Structure (validated — 60s teaser)
 ```
-0:00-0:08   ATMOSPHERIC COLD OPEN — long hold. Ambient sound or eerie music.
-             One slowly moving shot. Something slightly wrong about it.
-0:08-0:18   SLOW REVEAL SEQUENCE — 3-4 shots, each 3-4s, building unease.
-             Cut on silence, not on music beat. That's the A24 move.
-0:18-0:28   CONTRAST MOMENT — one thing that feels "normal" then a cut
-             to something deeply not normal. No explanation.
-0:28-0:32   SILENCE — pure black. Audience held.
-0:32-0:35   TITLE — just the film name. Simple. Maybe just white text.
-             Sometimes a single sound sting. Then silence again.
+0:00-0:01   BRIEF BLACK — 1.5s max. Not a long hold.
+0:01-0:40   8 CLIPS × 4-6s each — direct cuts, max 0.5s black between.
+             Narrative arc without words: establish → force → movement →
+             intimacy → reflection → beacon → isolation → together.
+0:40-0:42   PRE-TITLE BLACK — 1.5s. Dramatic beat before title.
+0:42-0:57   3 TITLE CARDS: dedication → main title → CTA/location
+             (0.6s black between each)
+0:57-1:00   FINAL BLACK HOLD
 ```
 
 ### Editing Rules
-- Cut on SILENCE, not on the beat — the jarring disconnect is the point
-- Music: often beautiful music during disturbing imagery (or vice versa)
-- Hold shots longer than comfortable — the discomfort is intentional
-- NEVER use voiceover in A24 style
-- Text: film title only, at the very end. Sometimes production company.
-- Color: high contrast, often desaturated or pushed into specific palette
-- Sound design: the sound matters MORE than in any other style
+- **NO VOICEOVER. Ever.** A24 strictly forbids it — confirmed by research.
+- Cut on SILENCE, not on the beat — the jarring disconnect IS the point
+- **Maximum 0.5s black between clips** (longer = wrong; the footage IS the silence)
+- **Pre-title black: 1.5s max** (not 3-4s — that was the v1 mistake)
+- Hold shots longer than comfortable within clips — not in black
+- NEVER use Bebas Neue for A24 cards — that's the gaming trailer trope
+- Text: 3 cards maximum. Dedication → title → location. Nothing explanatory.
+- Color: pushed teal/orange grade, film grain always on
+
+### Typography Rules
+- **Font: `serif` (Cormorant Garamond Light)** — not Bebas. Bebas = gaming.
+- Dedication card: size 44, warm cream `#d4bfa0`
+- Title card: size 96, near-white `#f0f0f0`, double-space between words for tracking
+- Location/CTA card: size 40, gray `#888888` — quiet, understated
+
+### 8-Clip Emotional Arc (validated structure)
+Each clip 4-6s. No narration. The sequence tells the story:
+
+| Clip | Subject | Emotional beat |
+|------|---------|----------------|
+| 1 | Establish world | Where we are |
+| 2 | The force/machine | What exists |
+| 3 | Movement | Someone going somewhere |
+| 4 | The bond/intimacy | Why it matters |
+| 5 | Reflection/interiority | The inner world |
+| 6 | The beacon/destination | Where they're going |
+| 7 | Isolation | The before — alone |
+| 8 | Together | The answer — arrival |
 
 ### YAML Segment Pattern
 ```yaml
-# A24 style — atmospheric, minimal
-film_grain: true          # always on
-color_grade: teal_orange  # or cold_blue, desaturated
+# A24 style — 60s atmospheric teaser
+film_grain: true
+color_grade: teal_orange
+
+audio:
+  music: assets/music_ambient.mp3    # Kevin MacLeod "At Rest" or similar
+  music_vol: 0.70
+  # NO voiceover — omit entirely
 
 timeline:
   - type: black
-    duration: 2.0          # hold the black. make them wait.
+    duration: 1.5              # brief open — not a long hold
 
-  - type: veo_clip         # atmospheric opening — something beautiful but wrong
-    file: clips/atmosphere_01.mp4
+  - type: veo_clip             # CLIP 1: establish world — slow fade in
+    file: clips/clip_01.mp4
+    trim: [0, 6.5]
+    fade_in: 1.5               # slow in — the A24 move
+    fade_out: 0.0              # hard cut out — unsettling
+
+  - type: veo_clip             # CLIP 2: no gap — direct cut
+    file: clips/clip_02.mp4
+    trim: [0, 5.5]
+    fade_in: 0.0
+    fade_out: 0.0
+
+  - type: black
+    duration: 0.5              # cut on silence — max 0.5s
+
+  # ... clips 3-7 with 0.0/0.0 fade in/out and 0.5s blacks ...
+
+  - type: veo_clip             # CLIP 8: together — slow fade to black
+    file: clips/clip_08.mp4
     trim: [0, 6.0]
-    fade_in: 1.2           # slow in
-    fade_out: 0.0          # hard cut — unsettling
-
-  - type: black
-    duration: 0.8          # breath of silence between shots
-
-  - type: veo_clip         # slow reveal
-    file: clips/reveal_01.mp4
-    trim: [0, 5.0]
     fade_in: 0.0
-    fade_out: 0.0
-
-  - type: veo_clip         # the wrong thing
-    file: clips/wrong_thing.mp4
-    trim: [0, 3.0]
-    fade_in: 0.0
-    fade_out: 0.0
+    fade_out: 1.5              # slow fade — let it land
 
   - type: black
-    duration: 3.0          # the long silence before title
+    duration: 1.5              # pre-title dramatic beat
 
-  - type: title_card
-    duration: 5.0
-    lines:
-      - text: "FILM TITLE"
-        font: bebas
-        size: 84
-        color: "#e8e8e8"   # not quite white — slightly aged
-
-  - type: black
+  - type: title_card           # DEDICATION — small, warm, personal
     duration: 3.0
+    lines:
+      - text: "FOR [NAME]."
+        font: serif            # Cormorant Garamond — not Bebas
+        size: 44
+        color: "#d4bfa0"
+
+  - type: black
+    duration: 0.6
+
+  - type: title_card           # MAIN TITLE — clean, near-white
+    duration: 4.0
+    lines:
+      - text: "TITLE  HERE"   # double-space = natural letter tracking
+        font: serif
+        size: 96
+        color: "#f0f0f0"
+
+  - type: black
+    duration: 0.6
+
+  - type: title_card           # CTA/LOCATION — quiet gray, understated
+    duration: 3.0
+    lines:
+      - text: "LOCATION."
+        font: serif
+        size: 40
+        color: "#888888"
+
+  - type: black
+    duration: 2.5
 ```
 
 ### Music Direction
-- Often a single instrument building — cello, piano, a voice
-- The emotional register of the music should be *wrong* for what's on screen
-- Beautiful music over horror. Dread under a sunny picnic. That's the move.
-- Silence is a tool. Use it more than you're comfortable with.
+- **Kevin MacLeod "At Rest"** — sparse piano, melancholic. Free/CC. Validated.
+- Other options: Olafur Arnalds, Nils Frahm, any sparse single-instrument track
+- Start the music at near-zero, let it build slowly — never a drop
+- Tempo under 80 BPM so individual notes are felt
+- The music fills silence the footage creates — they're partners, not competitors
+
+### What Went Wrong in v1 (lessons)
+- 4.5s black hold before titles — too long; the footage IS the pacing, not the black
+- Voiceover "Answer the call." — no VO in A24, even 3 words
+- Bebas Neue for title cards — gaming trailer trope, killed the mood
+- Only 4 clips — not enough footage; 8 clips at 4-6s each = 40s of pure visual story
+- Synthetic drone music — too on-the-nose; real sparse piano > synth texture
 
 ---
 

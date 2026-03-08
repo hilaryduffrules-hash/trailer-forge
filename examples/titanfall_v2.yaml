@@ -1,0 +1,142 @@
+# TITANFALL 2 — A24 Style v2
+# For Travis's birthday. Garret's place. After the LAN.
+#
+# NotebookLM research applied:
+# - NO voiceover (true A24 never uses VO)
+# - Cut on silence, not the beat
+# - Cormorant Garamond Light for text (not Bebas — that's gaming)
+# - Pure white/warm off-white text, small and restrained
+# - Ambient "At Rest" piano — single building instrument, melancholic
+# - Diegetic texture: the world sounds alive under the score
+# - MAX 1.5s black gaps (replaced gaps with footage)
+# - 8 clips. 3 cards. Total ~57s.
+#
+# Emotional arc (no words needed):
+#  City → Machine waits → Pilot runs → The bond → Helmet reflects the world →
+#  The lone light (someone home) → Titan alone on ridge → Pilot + Titan together →
+#  FOR TRAVIS. TITANFALL 2. GARRET'S PLACE.
+
+output: out/titanfall_v2.mp4
+resolution: [1920, 1080]
+fps: 24
+film_grain: true
+color_grade: teal_orange
+
+audio:
+  music: assets/music_ambient.mp3  # single piano, Kevin MacLeod "At Rest" or similar
+  music_vol: 0.70              # single piano — let it breathe
+  # No voiceover. The footage speaks.
+
+timeline:
+
+  # 0.0s — open in darkness, but brief
+  - type: black
+    duration: 1.5
+
+  # 1.5s — CITY. Establish the world. Slow fade in.
+  - type: veo_clip
+    file: assets/clip_01_city_night.mp4
+    trim: [0, 6.5]
+    fade_in: 1.5
+    fade_out: 0.0              # hard cut
+
+  # 8.0s — TITAN EMERGES. No gap. Immediate.
+  - type: veo_clip
+    file: assets/clip_02_titan_emerge.mp4
+    trim: [0, 5.5]
+    fade_in: 0.0
+    fade_out: 0.0
+
+  # 13.5s — 0.5s breath (cut on silence — the A24 move)
+  - type: black
+    duration: 0.5
+
+  # 14.0s — PILOT RUNS. Moving toward something.
+  - type: veo_clip
+    file: assets/clip_03_pilot_run.mp4
+    trim: [0, 4.5]
+    fade_in: 0.0
+    fade_out: 0.0
+
+  # 18.5s — THE BOND. Pilot hand meets titan hand. No gap.
+  - type: veo_clip
+    file: assets/clip_04_bond.mp4
+    trim: [0, 4.5]
+    fade_in: 0.0
+    fade_out: 0.0
+
+  # 23.0s — 0.5s silence (weight of the bond moment)
+  - type: black
+    duration: 0.5
+
+  # 23.5s — HELMET. The world reflected in the visor. We cannot see the face.
+  - type: veo_clip
+    file: assets/clip_05_helmet.mp4
+    trim: [0, 5.0]
+    fade_in: 0.0
+    fade_out: 0.0
+
+  # 28.5s — LONE LIGHT. One warm window in a cold city. Garret's place.
+  - type: veo_clip
+    file: assets/clip_06_lone_light.mp4
+    trim: [0, 5.0]
+    fade_in: 0.0
+    fade_out: 0.0
+
+  # 33.5s — TITAN ON RIDGE. Alone. Waiting.
+  - type: veo_clip
+    file: assets/clip_07_titan_ridge.mp4
+    trim: [0, 6.0]
+    fade_in: 0.0
+    fade_out: 0.0
+
+  # 39.5s — TWO SILHOUETTES. Pilot and titan. Together. The call answered.
+  - type: veo_clip
+    file: assets/clip_08_two_silhouettes.mp4
+    trim: [0, 6.0]
+    fade_in: 0.0
+    fade_out: 1.5              # slow fade to black — let it land
+
+  # 47.0s — The long silence before the title (shortened to 1.5s)
+  - type: black
+    duration: 1.5
+
+  # 48.5s — FOR TRAVIS.
+  # Cormorant Garamond Light, small, warm — intimate not cinematic
+  - type: title_card
+    duration: 3.0
+    lines:
+      - text: "FOR TRAVIS."
+        font: serif
+        size: 44
+        color: "#d4bfa0"
+
+  # 51.5s — breath
+  - type: black
+    duration: 0.6
+
+  # 52.1s — TITANFALL 2 — clean white, restrained
+  - type: title_card
+    duration: 4.0
+    lines:
+      - text: "TITANFALL  2"
+        font: serif
+        size: 96
+        color: "#f0f0f0"
+
+  # 56.1s — breath
+  - type: black
+    duration: 0.6
+
+  # 56.7s — GARRET'S PLACE. quiet. an address, not a headline.
+  - type: title_card
+    duration: 3.0
+    lines:
+      - text: "GARRET'S PLACE."
+        font: serif
+        size: 40
+        color: "#888888"
+
+  # 59.7s — hold
+  - type: black
+    duration: 2.5
