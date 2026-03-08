@@ -122,115 +122,271 @@ def transcribe(audio_path: str) -> dict:
 
 # ── Step 3: Detect best clip windows ─────────────────────────────────────────
 
-def _sentence_boundaries(text: str) -> int:
-    """Count sentence-ending punctuation — proxy for complete thoughts."""
-    return len(re.findall(r'[.!?]', text))
+# Power words that trigger emotional engagement / virality signals
+_POWER_WORDS = re.compile(
+    r'\b(never|always|every|most|only|secret|real reason|actually|truth|wrong|'
+    r'mistake|fail|impossible|revolutionary|critical|dangerous|shocking|proven|'
+    r'biggest|fastest|best|worst|hidden|exposing|finally|stop|warning)\b',
+    re.IGNORECASE
+)
+
+# Authority signals: numbers, percentages, proper-noun-like capitalized words
+_AUTHORITY = re.compile(r'\b\d[\d,.%$BMK]+|\b[A-Z][a-z]+(?:\s[A-Z][a-z]+)+\b')
+
+# Filler starts that kill hooks
+_FILLER_START = re.compile(r'^(so|um|uh|and|but|like|you know|basically|anyway|right|okay|well)\b',
+                            re.IGNORECASE)
+
+# Hook-positive openers
+_HOOK_OPENERS = re.compile(
+    r"^(what if|here'?s|the real|nobody|most people|the problem|the truth|"
+    r"what nobody|did you know|the secret|this is why|the reason|stop|never|"
+    r"imagine|the biggest|every|the only)",
+    re.IGNORECASE
+)
 
 
-def _score_window(segments: list, t_start: float, t_end: float) -> Tuple[float, str]:
+def _extract_sentences(segments: list) -> List[dict]:
     """
-    Score a time window [t_start, t_end] by:
-      - word count (density)
-      - sentence boundary count (completeness — complete thoughts score higher)
-      - question marks (engagement — questions pull audiences in)
-      - window starts on a sentence boundary (bonus — clean in-point)
-    Returns (score, combined_text).
+    Build a list of sentences from Whisper word timestamps.
+    Each sentence: {text, start, end}
+    Splits on sentence-ending punctuation using word-level timestamps.
     """
-    words = []
-    text_parts = []
+    sentences = []
+    current_words = []
+
+    all_words = []
     for seg in segments:
-        seg_start = seg.get("start", 0.0)
-        seg_end   = seg.get("end",   0.0)
-        if seg_end < t_start or seg_start > t_end:
-            continue
-        text_parts.append(seg.get("text", "").strip())
         for w in seg.get("words", []):
-            ws = w.get("start", seg_start)
-            if t_start <= ws <= t_end:
-                words.append(w.get("word", ""))
+            all_words.append({
+                "word":  w.get("word", "").strip(),
+                "start": w.get("start", seg.get("start", 0)),
+                "end":   w.get("end",   seg.get("end",   0)),
+            })
+        # Fallback: if no word timestamps, treat whole segment as one sentence
+        if not seg.get("words"):
+            sentences.append({
+                "text":  seg.get("text", "").strip(),
+                "start": seg.get("start", 0),
+                "end":   seg.get("end",   0),
+            })
 
-    text    = " ".join(text_parts)
-    n_words = len(words) if words else len(text.split())
-    n_sent  = _sentence_boundaries(text)
-    n_quest = len(re.findall(r'\?', text))
+    for w in all_words:
+        if not w["word"]:
+            continue
+        current_words.append(w)
+        if re.search(r'[.!?]$', w["word"]):
+            if current_words:
+                sentences.append({
+                    "text":  " ".join(cw["word"] for cw in current_words).strip(),
+                    "start": current_words[0]["start"],
+                    "end":   current_words[-1]["end"],
+                })
+                current_words = []
 
-    # Bonus if the window starts within 2s of a sentence boundary
-    # (ensures clips open on a clean thought, not mid-sentence)
-    clean_start_bonus = 0
-    for seg in segments:
-        seg_text  = seg.get("text", "")
-        seg_start = seg.get("start", 0.0)
-        if abs(seg_start - t_start) < 2.0 and re.search(r'[.!?]\s*$', seg_text.strip()):
-            clean_start_bonus = 15
-            break
+    if current_words:
+        sentences.append({
+            "text":  " ".join(cw["word"] for cw in current_words).strip(),
+            "start": current_words[0]["start"],
+            "end":   current_words[-1]["end"],
+        })
 
-    score = (n_words * 1.0
-             + n_sent  * 8.0
-             + n_quest * 12.0   # questions are engaging
-             + clean_start_bonus)
-    return score, text
+    return sentences
+
+
+def _score_window_heuristic(text: str, first_sentence: str) -> float:
+    """
+    Curation-style scoring (no LLM) based on Opus Clip methodology:
+      Hook strength (40%) + Narrative arc signals (30%) +
+      Authority + power words (15%) + Topic coherence (15%)
+    Returns 0–100.
+    """
+    # ── Hook strength (0–40) ─────────────────────────────────────────────────
+    hook = 0
+    if _HOOK_OPENERS.search(first_sentence):
+        hook += 20
+    if '?' in first_sentence:
+        hook += 15
+    if _AUTHORITY.search(first_sentence):
+        hook += 10
+    if _FILLER_START.search(first_sentence):
+        hook -= 25   # hard penalty
+    hook = max(0, min(40, hook))
+
+    # ── Narrative arc signals (0–30) ─────────────────────────────────────────
+    n_sentences = len(re.findall(r'[.!?]', text))
+    has_setup   = bool(re.search(r'\b(problem|issue|challenge|question|why|what|how)\b', text, re.I))
+    has_payoff  = bool(re.search(r'\b(so|therefore|that\'?s why|which means|this means|result|answer|solution|key)\b', text, re.I))
+    arc = min(30, n_sentences * 4 + (10 if has_setup else 0) + (10 if has_payoff else 0))
+
+    # ── Authority + power words (0–15) ────────────────────────────────────────
+    n_auth   = len(_AUTHORITY.findall(text))
+    n_power  = len(_POWER_WORDS.findall(text))
+    authority = min(15, n_auth * 3 + n_power * 2)
+
+    # ── Topic coherence proxy (0–15): penalty for drifting ───────────────────
+    # Simple proxy: unique "topic words" (nouns > 4 chars) per sentence count
+    nouns   = re.findall(r'\b[a-z]{5,}\b', text.lower())
+    unique  = len(set(nouns))
+    total   = len(nouns) + 1
+    ratio   = unique / total   # low ratio = repetitive = focused
+    coherence = int(15 * (1 - min(ratio, 0.8) / 0.8))
+
+    return hook + arc + authority + coherence
+
+
+def _llm_score_window(text: str, first_sentence: str) -> float:
+    """
+    Use Gemini Flash (free) to score a clip window.
+    Returns curation score 0–100 or falls back to heuristic on error.
+    """
+    gemini_key = os.environ.get("GEMINI_API_KEY", "")
+    if not gemini_key:
+        return _score_window_heuristic(text, first_sentence)
+
+    prompt = f"""You are scoring a transcript window for viral short-form video potential (TikTok/Reels/Shorts).
+
+Score this window 0-100 based on:
+- Hook strength (40pts): Does the FIRST SENTENCE grab attention instantly? Bold claim, question, counter-intuitive statement = high score. Filler words ("so", "um", "and") or mid-thought start = deduct heavily.
+- Narrative arc (30pts): Does this tell a complete mini-story? Setup + development + payoff = high. All explanation with no hook or punchline = low.
+- Authority signals (15pts): Specific numbers, real names, expert vocabulary used naturally.
+- Topic coherence (15pts): Is this focused on ONE clear idea, or drifting?
+
+Transcript window:
+---
+First sentence: {first_sentence[:200]}
+
+Full text: {text[:600]}
+---
+
+Reply with ONLY a JSON object: {{"score": <number 0-100>, "hook": "<one phrase describing the hook>", "issue": "<main weakness if any>"}}"""
+
+    try:
+        import urllib.request
+        payload = json.dumps({"contents": [{"parts": [{"text": prompt}]}],
+                              "generationConfig": {"temperature": 0.1, "maxOutputTokens": 80}})
+        req = urllib.request.Request(
+            f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key={gemini_key}",
+            data=payload.encode(),
+            headers={"Content-Type": "application/json"},
+            method="POST"
+        )
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read())
+        raw = data["candidates"][0]["content"]["parts"][0]["text"].strip()
+        # Strip markdown code fences if present
+        raw = re.sub(r'^```[a-z]*\n?', '', raw).rstrip('`').strip()
+        result = json.loads(raw)
+        return float(result.get("score", 50))
+    except Exception:
+        return _score_window_heuristic(text, first_sentence)
+
+
+def _build_sentence_windows(sentences: list, min_sec: float, max_sec: float) -> List[dict]:
+    """
+    Build clip candidates that START and END on sentence boundaries.
+    This ensures no clip begins mid-thought.
+    Returns list of {start, end, text, first_sentence}.
+    """
+    windows = []
+    n = len(sentences)
+
+    for i, sent in enumerate(sentences):
+        t_start = sent["start"]
+        text_parts = [sent["text"]]
+
+        for j in range(i + 1, n):
+            t_end    = sentences[j]["end"]
+            duration = t_end - t_start
+
+            if duration < min_sec:
+                text_parts.append(sentences[j]["text"])
+                continue
+
+            text_parts.append(sentences[j]["text"])
+            full_text = " ".join(text_parts)
+
+            windows.append({
+                "start":          t_start,
+                "end":            t_end,
+                "text":           full_text,
+                "first_sentence": sent["text"],
+                "duration":       duration,
+            })
+
+            if duration >= max_sec:
+                break
+
+    return windows
 
 
 def detect_clips(transcript: dict, top_n: int = 3,
                  window: float = WINDOW_SEC) -> List[dict]:
     """
-    Slide a window over the transcript and return the top_n non-overlapping
-    clip windows, each as:
-      { start, end, score, text, duration }
+    Build sentence-boundary windows, score each with heuristic+LLM curation
+    scoring (Opus Clip methodology), return top_n non-overlapping clips.
     """
     segments  = transcript.get("segments", [])
     if not segments:
         die("Transcript has no segments — cannot detect clips")
 
     total_dur = max(seg.get("end", 0.0) for seg in segments)
-    log(f"Video duration: {total_dur:.1f}s  |  Window: {window}s  |  Step: {STEP_SEC}s")
 
-    # Clamp window to something sensible
-    win = min(window, MAX_CLIP_SEC)
-    win = max(win,    MIN_CLIP_SEC)
+    # Build sentence list from word timestamps
+    sentences = _extract_sentences(segments)
+    if not sentences:
+        die("No sentences extracted from transcript")
 
-    # Score every window position
+    log(f"Video duration: {total_dur:.1f}s  |  {len(sentences)} sentences  |  target: {window}s clips")
+
+    # Build candidate windows that start+end on sentence boundaries
+    candidates = _build_sentence_windows(sentences, MIN_CLIP_SEC, MAX_CLIP_SEC)
+    if not candidates:
+        die("No sentence-bounded windows found — transcript may be too short or have no punctuation")
+
+    log(f"Scoring {len(candidates)} sentence-bounded candidates…")
+    use_llm = bool(os.environ.get("GEMINI_API_KEY", ""))
+    if use_llm:
+        log("LLM scoring via Gemini Flash (Opus Clip-style curation score)…")
+    else:
+        log("Heuristic scoring (set GEMINI_API_KEY to enable LLM curation)")
+
     scored = []
-    t = 0.0
-    while t + win <= total_dur + STEP_SEC:
-        t_end  = min(t + win, total_dur)
-        t_end  = min(t_end, t + MAX_CLIP_SEC)
-        if (t_end - t) < MIN_CLIP_SEC:
-            t += STEP_SEC
-            continue
-        score, text = _score_window(segments, t, t_end)
-        scored.append({"start": t, "end": t_end, "score": score, "text": text})
-        t += STEP_SEC
+    for c in candidates:
+        if use_llm:
+            score = _llm_score_window(c["text"], c["first_sentence"])
+        else:
+            score = _score_window_heuristic(c["text"], c["first_sentence"])
+        scored.append({**c, "score": score})
 
     if not scored:
         die("No scoreable windows found in transcript")
 
-    # Sort by score descending, then pick top_n non-overlapping windows
+    # Sort by score descending, pick top_n non-overlapping windows
     scored.sort(key=lambda x: x["score"], reverse=True)
 
     selected = []
     for candidate in scored:
         if len(selected) >= top_n:
             break
-        # Check overlap with already-selected clips
         overlap = False
         for sel in selected:
             latest_start = max(candidate["start"], sel["start"])
             earliest_end = min(candidate["end"],   sel["end"])
-            if earliest_end - latest_start > 5.0:   # >5s overlap = skip
+            if earliest_end - latest_start > 5.0:
                 overlap = True
                 break
         if not overlap:
             candidate["duration"] = round(candidate["end"] - candidate["start"], 2)
             selected.append(candidate)
 
-    # Sort selected by start time for natural ordering
     selected.sort(key=lambda x: x["start"])
 
     for i, clip in enumerate(selected):
+        hook_preview = clip.get("first_sentence", clip["text"])[:70].strip()
         log(f"Clip {i+1}: {clip['start']:.1f}s → {clip['end']:.1f}s "
-            f"(score={clip['score']:.0f}, {clip['duration']:.0f}s) "
-            f"— \"{clip['text'][:60].strip()}…\"")
+            f"(score={clip['score']:.0f}, {clip['duration']:.0f}s)")
+        log(f"  Hook: \"{hook_preview}\"")
 
     return selected
 
