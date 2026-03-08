@@ -213,6 +213,70 @@ python3 trailer_forge.py clip <youtube_url> [options]
 
 ---
 
+## Chapters — YouTube Chapter Markers
+
+Chapters auto-generates YouTube chapter markers from any local video file using
+Whisper transcription and silence-gap detection.
+
+```
+video file → ffmpeg audio extract → Whisper transcription → silence detection → chapter markers
+```
+
+### Quick start
+
+```bash
+# Generate chapters for a video
+python3 trailer_forge.py chapters my_video.mp4
+
+# Adjust silence threshold (default: 2s gaps)
+python3 trailer_forge.py chapters my_video.mp4 --silence 3.0
+
+# Tweak noise floor for silence detection
+python3 trailer_forge.py chapters my_video.mp4 --noise-db -35
+```
+
+### Output
+
+Chapters are printed to stdout in YouTube-compatible format and saved alongside the video:
+
+```
+0:00 Intro
+1:23 Welcome To The Show
+4:07 Deep Dive On Topic
+9:55 Final Thoughts
+```
+
+The `.chapters` file (`my_video.mp4.chapters`) is ready to paste into YouTube's chapter
+field in Studio.
+
+### How it works
+
+1. **Audio extract** — ffmpeg pulls mono 16kHz audio (ideal for Whisper)
+2. **Silence detection** — `silencedetect` filter finds gaps ≥ 2s at −40 dB
+3. **Transcription** — Whisper base model produces word-level timestamps
+4. **Sentence grouping** — words are grouped by sentence-ending punctuation
+5. **Boundary alignment** — each silence gap is matched to the nearest sentence end
+6. **Label generation** — chapter title = first 5 words of the following sentence
+
+### Options
+
+```
+python3 trailer_forge.py chapters <video_file> [options]
+
+  --silence N       Minimum silence gap in seconds (default: 2.0)
+  --noise-db N      Noise threshold in dB, e.g. -40 (default: -40)
+  --label-words N   Words to use for chapter label (default: 5)
+```
+
+### Requirements
+
+| Tool | Purpose | Install |
+|------|---------|---------|
+| `whisper` | Local transcription | `pip install openai-whisper` |
+| `ffmpeg` | Audio extract + silence detect | `sudo apt install ffmpeg` |
+
+---
+
 ## Compress for Sharing
 
 ```bash

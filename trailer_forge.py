@@ -1481,12 +1481,13 @@ commands:
   storyboard  Generate visual storyboard PNG from manifest
   broadcast   Assemble with broadcast elements (countdown, color bars, lower thirds)
   clip        YouTube → transcribe → detect → social-ready clips
+  chapters    Auto-generate YouTube chapter markers from a video file
         """
     )
     p.add_argument("command",
                    choices=["build","assemble","gen-clips","preview",
                             "deliver","export-srt","export-me",
-                            "storyboard","broadcast","clip"])
+                            "storyboard","broadcast","clip","chapters"])
     p.add_argument("manifest",
                    help="YAML manifest / video path / Whisper JSON / YouTube URL")
     p.add_argument("--targets", nargs="+", default=["youtube", "telegram"],
@@ -1500,6 +1501,13 @@ commands:
                    help="Clipper: number of clips to extract (default: 3)")
     p.add_argument("--format", choices=["vertical","horizontal"], default="vertical",
                    help="Clipper: output format (default: vertical 9:16)")
+    # chapters subcommand options
+    p.add_argument("--silence", type=float, default=2.0,
+                   help="[chapters] Minimum silence gap in seconds (default: 2.0)")
+    p.add_argument("--noise-db", type=int, default=-40,
+                   help="[chapters] Noise threshold in dB for silence detection (default: -40)")
+    p.add_argument("--label-words", type=int, default=5,
+                   help="[chapters] Max words to use for chapter label (default: 5)")
     args = p.parse_args()
 
     if   args.command == "preview":    preview(args.manifest)
@@ -1516,3 +1524,12 @@ commands:
         from pathlib import Path as _Path
         run_clipper(args.manifest, top_n=args.top, fmt=args.format,
                     out_dir=_Path(args.output or "out/clips"))
+    elif args.command == "chapters":
+        sys.path.insert(0, str(SCRIPT_DIR / "tools"))
+        from chapters import run_chapters
+        run_chapters(
+            video_path      = args.manifest,
+            min_silence_sec = args.silence,
+            noise_db        = args.noise_db,
+            max_label_words = args.label_words,
+        )
