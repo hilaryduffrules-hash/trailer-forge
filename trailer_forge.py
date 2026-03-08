@@ -878,6 +878,591 @@ def export_srt(whisper_json_path, output_srt="output.srt"):
     Path(output_srt).write_text("\n".join(lines))
     ok(f"SRT export: {output_srt} ({idx-1} words)")
 
+# ── Phase 4: M&E Export (Music & Effects — no dialogue) ───────────────────────
+def export_me(manifest_path, output_path=None):
+    """
+    Export a Music & Effects (M&E) track — music + SFX with dialogue stripped.
+    Used for international distribution: foreign distributors dub in their language
+    over a clean M&E stem.
+
+    Output: a .wav file (stereo, 44.1kHz) alongside the master video.
+    """
+    manifest_path = Path(manifest_path).resolve()
+    base_dir      = manifest_path.parent
+
+    with open(manifest_path) as f:
+        cfg = yaml.safe_load(f)
+
+    audio    = cfg.get("audio", {})
+    out_vid  = base_dir / cfg.get("output", "output.mp4")
+    out_me   = Path(output_path) if output_path else out_vid.parent / (out_vid.stem + "_ME.wav")
+
+    music_path = audio.get("music", "")
+    auto_sfx   = audio.get("sfx", "none") == "auto"
+
+    print(f"\n🎵 M&E EXPORT (Music & Effects — no dialogue)")
+    print(f"   Manifest : {manifest_path.name}")
+    print(f"   Output   : {out_me}\n")
+
+    if not music_path:
+        warn("No music defined in manifest — M&E will be silence")
+        run(f'ffmpeg -y -f lavfi -i "anullsrc=duration=10" -ar 44100 -ac 2 "{out_me}"', check=False)
+        return str(out_me)
+
+    mp = base_dir / music_path
+    if not mp.exists():
+        warn(f"Music file not found: {mp}")
+        return None
+
+    # Measure total duration from manifest timeline
+    total_dur = 0.0
+    for item in cfg.get("timeline", []):
+        kind  = item.get("type", "black")
+        trim  = item.get("trim", [0, 5])
+        total_dur += (float(trim[1]) - float(trim[0])) if kind == "veo_clip" \
+                     else float(item.get("duration", 3.0))
+
+    music_vol = float(audio.get("music_vol", 0.35))
+    work      = Path(tempfile.mkdtemp(prefix="tf_me_"))
+
+    if auto_sfx:
+        log("Building SFX layer for M&E…")
+        sfx_mix = build_sfx_mix(
+            cfg.get("timeline", []), base_dir, total_dur, work,
+            grade=cfg.get("color_grade", "dark_thriller")
+        )
+        if sfx_mix:
+            sfx_vol = float(audio.get("sfx_vol", 0.8))
+            filt = (f"[0]volume={music_vol}[m];"
+                    f"[1]volume={sfx_vol}[s];"
+                    f"[m][s]amix=inputs=2:duration=first:dropout_transition=2[out]")
+            run(f'ffmpeg -y -i "{mp}" -i "{sfx_mix}" '
+                f'-filter_complex "{filt}" -map "[out]" '
+                f'-t {total_dur} -ar 44100 -ac 2 "{out_me}"')
+        else:
+            run(f'ffmpeg -y -i "{mp}" -af "volume={music_vol}" '
+                f'-t {total_dur} -ar 44100 -ac 2 "{out_me}"')
+    else:
+        run(f'ffmpeg -y -i "{mp}" -af "volume={music_vol}" '
+            f'-t {total_dur} -ar 44100 -ac 2 "{out_me}"')
+
+    shutil.rmtree(work, ignore_errors=True)
+    size_kb = Path(out_me).stat().st_size // 1024
+    ok(f"M&E export: {out_me.name} ({size_kb}KB, {dur_str(total_dur)})")
+    ok("Ready for international dubbing — no dialogue track included")
+    return str(out_me)
+
+
+# ── Phase 5: Storyboard Generation ────────────────────────────────────────────
+def storyboard(manifest_path, output_png=None, cols=4):
+    """
+    Generate a visual storyboard from a trailer YAML manifest.
+
+    Each panel shows:
+    - Shot number + timecode
+    - Segment type badge
+    - Shot preset/type label
+    - Description text
+    - If a veo_clip file exists → extracts a thumbnail frame
+    - Otherwise → colored placeholder with cinematography vocabulary
+
+    Output: PNG grid image (print-ready, letter/A4 proportions)
+    """
+    manifest_path = Path(manifest_path).resolve()
+    base_dir      = manifest_path.parent
+
+    with open(manifest_path) as f:
+        cfg = yaml.safe_load(f)
+
+    out_png = Path(output_png) if output_png else \
+              base_dir / (Path(manifest_path).stem + "_storyboard.png")
+
+    timeline = cfg.get("timeline", [])
+    title    = cfg.get("title", Path(manifest_path).stem.replace("_", " ").upper())
+
+    # Panel dimensions
+    PW, PH   = 480, 280           # panel width, height
+    PAD      = 16                 # padding between panels
+    MARGIN   = 40                 # page margin
+    HEADER_H = 80                 # title header height
+    LABEL_H  = 60                 # label strip below frame
+    PANEL_H  = PH + LABEL_H + 8  # total panel height with label
+
+    # Segment type colors
+    TYPE_COLORS = {
+        "veo_clip":   (20,  60,  120),
+        "title_card": (60,  20,  80),
+        "main_title": (100, 20,  20),
+        "black":      (20,  20,  20),
+    }
+    TYPE_LABELS = {
+        "veo_clip":   "📹 CLIP",
+        "title_card": "📝 CARD",
+        "main_title": "🎬 TITLE",
+        "black":      "⬛ BLACK",
+    }
+
+    # Filter out pure black segments from storyboard (they're just timing)
+    panels = []
+    t = 0.0
+    for i, item in enumerate(timeline):
+        kind = item.get("type", "black")
+        trim = item.get("trim", [0, 5])
+        dur  = (float(trim[1]) - float(trim[0])) if kind == "veo_clip" \
+               else float(item.get("duration", 3.0))
+        if kind != "black":
+            panels.append({"idx": i+1, "item": item, "t": t, "dur": dur})
+        t += dur
+
+    # Grid dimensions
+    rows       = max(1, -(-len(panels) // cols))  # ceil division
+    page_w     = MARGIN*2 + cols*(PW+PAD) - PAD
+    page_h     = MARGIN*2 + HEADER_H + rows*(PANEL_H+PAD) - PAD + 40
+    page       = Image.new("RGB", (page_w, page_h), (18, 18, 26))
+    draw       = ImageDraw.Draw(page)
+
+    # Header
+    header_font = load_font("bebas", 52)
+    sub_font    = load_font("sans",  22)
+    draw.text((MARGIN, MARGIN), title,
+              font=header_font, fill=COLOURS["white"])
+    draw.text((MARGIN, MARGIN + 56),
+              f"STORYBOARD  ·  {len(panels)} shots  ·  {dur_str(t)}",
+              font=sub_font, fill=COLOURS["gold"])
+    draw.line([(MARGIN, MARGIN + HEADER_H - 4),
+               (page_w - MARGIN, MARGIN + HEADER_H - 4)],
+              fill=COLOURS["gold"], width=1)
+
+    for pi, panel in enumerate(panels):
+        col   = pi % cols
+        row   = pi // cols
+        px    = MARGIN + col * (PW + PAD)
+        py    = MARGIN + HEADER_H + row * (PANEL_H + PAD)
+        item  = panel["item"]
+        kind  = item.get("type", "black")
+        color = TYPE_COLORS.get(kind, (40, 40, 40))
+
+        # Try to extract frame from existing clip
+        frame_img = None
+        if kind == "veo_clip":
+            src = base_dir / item.get("file", "")
+            if src.exists():
+                try:
+                    thumb = Path(tempfile.mktemp(suffix=".png"))
+                    trim_start = float(item.get("trim", [0,5])[0])
+                    grab_at    = trim_start + panel["dur"] * 0.4
+                    run(f'ffmpeg -y -ss {grab_at} -i "{src}" -vframes 1 '
+                        f'-vf "scale={PW}:{PH}:force_original_aspect_ratio=increase,crop={PW}:{PH}" '
+                        f'"{thumb}"', check=False)
+                    if thumb.exists():
+                        frame_img = Image.open(thumb).convert("RGB").resize((PW, PH))
+                except Exception:
+                    pass
+
+        # Draw panel frame
+        if frame_img:
+            page.paste(frame_img, (px, py))
+        else:
+            # Colored placeholder
+            draw.rectangle([px, py, px+PW, py+PH], fill=color)
+            # Gradient overlay suggestion lines
+            for lx in range(0, PW, 40):
+                draw.line([(px+lx, py), (px+lx, py+PH)],
+                          fill=(*color, 60) if hasattr(color, '__len__') else color, width=1)
+
+            # Description text in placeholder
+            desc = ""
+            if kind == "veo_clip":
+                preset = item.get("preset", "")
+                subj   = item.get("subject", item.get("prompt", ""))[:60]
+                desc   = f"[{preset}]\n{subj}" if preset else subj
+            elif kind == "title_card":
+                desc = "\n".join(str(l.get("text","")) for l in item.get("lines",[]))[:80]
+            elif kind == "main_title":
+                desc = f"T H E\n{item.get('title','')}"
+
+            if desc:
+                dfont = load_font("sans", 18)
+                # Word wrap
+                words = desc.replace("\n", " \n ").split(" ")
+                lines_out, cur = [], ""
+                for w in words:
+                    if w == "\n":
+                        lines_out.append(cur.strip()); cur = ""
+                    elif len(cur) + len(w) + 1 > 32:
+                        lines_out.append(cur.strip()); cur = w
+                    else:
+                        cur = (cur + " " + w).strip()
+                if cur: lines_out.append(cur)
+
+                ty = py + PH//2 - len(lines_out)*12
+                for ln in lines_out[:6]:
+                    draw.text((px + PW//2, ty), ln, font=dfont,
+                              fill=(200,200,220), anchor="mm")
+                    ty += 22
+
+        # Type badge (top-left)
+        badge_label = TYPE_LABELS.get(kind, kind.upper())
+        bfont = load_font("sans", 16)
+        bw    = 110 if kind != "black" else 80
+        draw.rectangle([px, py, px+bw, py+22], fill=(0,0,0,180))
+        draw.text((px+6, py+4), badge_label, font=bfont, fill=COLOURS["gold"])
+
+        # Shot number + timecode (top-right)
+        nfont = load_font("sans", 16)
+        tc    = dur_str(panel["t"])
+        draw.text((px+PW-6, py+4), f"#{panel['idx']} {tc}",
+                  font=nfont, fill=(180,180,180), anchor="ra")
+
+        # Label strip below frame
+        label_bg_y = py + PH
+        draw.rectangle([px, label_bg_y, px+PW, label_bg_y+LABEL_H],
+                       fill=(12, 12, 20))
+        draw.line([(px, label_bg_y), (px+PW, label_bg_y)],
+                  fill=COLOURS["gold"], width=1)
+
+        # Duration
+        dur_font = load_font("bebas", 26)
+        draw.text((px+8, label_bg_y+6),
+                  f"{panel['dur']:.1f}s",
+                  font=dur_font, fill=COLOURS["goldhi"])
+
+        # Preset or shot info
+        info = ""
+        if kind == "veo_clip" and item.get("preset"):
+            info = item["preset"].replace("_", " ").upper()
+        elif kind == "veo_clip" and item.get("shot"):
+            s = item["shot"]
+            info = f"{s.get('type','')} {s.get('movement','')}"
+        elif kind == "title_card":
+            first_line = item.get("lines", [{}])[0].get("text", "")
+            info = first_line[:28]
+        elif kind == "main_title":
+            info = item.get("title", "")
+
+        if info:
+            ifont = load_font("sans", 15)
+            draw.text((px+8, label_bg_y+32), info, font=ifont,
+                      fill=(180, 180, 200))
+
+        # Panel border
+        draw.rectangle([px, py, px+PW, py+PH+LABEL_H],
+                       outline=COLOURS["gold"], width=1)
+
+    # Footer
+    footer_y = page_h - 28
+    draw.text((MARGIN, footer_y),
+              "trailer-forge  ·  murdawkmedia.com  ·  github.com/hilaryduffrules-hash/trailer-forge",
+              font=load_font("sans", 14), fill=(60, 60, 80))
+
+    page.save(str(out_png))
+    ok(f"Storyboard: {out_png} ({len(panels)} panels, {page_w}×{page_h}px)")
+    return str(out_png)
+
+
+# ── Phase 6: Broadcast Elements ───────────────────────────────────────────────
+
+def render_countdown(W, H, work_dir, fps=30):
+    """
+    Classic film countdown leader: 8-7-6-5-4-3-2 with SMPTE-style frames.
+    Returns list of (segment_mp4, duration) tuples.
+    """
+    segs = []
+    for n in range(8, 1, -1):
+        png = work_dir / f"count_{n}.png"
+        img = Image.new("RGB", (W, H), (10, 10, 10))
+        d   = ImageDraw.Draw(img)
+
+        # Outer circle
+        cx, cy, r = W//2, H//2, min(W,H)//2 - 40
+        d.ellipse([cx-r, cy-r, cx+r, cy+r], outline=(200,200,200), width=6)
+
+        # Cross hairs
+        d.line([(0, H//2), (W, H//2)], fill=(200,200,200), width=2)
+        d.line([(W//2, 0), (W//2, H)], fill=(200,200,200), width=2)
+
+        # Inner circle
+        ri = r // 3
+        d.ellipse([cx-ri, cy-ri, cx+ri, cy+ri], outline=(200,200,200), width=3)
+
+        # Number
+        nfont = load_font("bebas", min(W, H) // 3)
+        img   = _text_glow(img, cx, cy, str(n), nfont, COLOURS["white"],
+                           glow_color=(180,180,180), radius=20)
+
+        # SMPTE-style color strip at bottom
+        bar_colors = [(192,0,0),(192,192,0),(0,192,0),(0,192,192),
+                      (0,0,192),(192,0,192),(192,192,192)]
+        bw = W // len(bar_colors)
+        bd = ImageDraw.Draw(img)
+        for bi, bc in enumerate(bar_colors):
+            bd.rectangle([bi*bw, H-60, (bi+1)*bw, H], fill=bc)
+
+        img.save(str(png))
+        seg = work_dir / f"count_{n}.mp4"
+        # Each number holds for 1 frame, then beep — classic 24fps leader = 1s/number
+        png_to_seg(str(png), 1.0, fps, str(seg), fade_in=0, fade_out=0)
+        segs.append((str(seg), 1.0))
+
+    return segs
+
+
+def render_color_bars(W, H, duration, fps, out_mp4):
+    """
+    SMPTE-style color bars for monitor calibration.
+    Standard broadcast tool — goes at the head of any deliverable master.
+    """
+    img = Image.new("RGB", (W, H), (0, 0, 0))
+    d   = ImageDraw.Draw(img)
+
+    # Top 75% — SMPTE 7 color bars
+    bar_h   = int(H * 0.67)
+    colors  = [(192,192,192),(192,192,0),(0,192,192),(0,192,0),
+               (192,0,192),(192,0,0),(0,0,192)]
+    bw      = W // len(colors)
+    for i, c in enumerate(colors):
+        d.rectangle([i*bw, 0, (i+1)*bw, bar_h], fill=c)
+
+    # Middle strip — -I, white, +Q, black sub-blacks
+    mid_h   = int(H * 0.08)
+    mid_y   = bar_h
+    sub_colors = [(0,33,76),(255,255,255),(50,0,106),(10,10,10),
+                  (16,16,16),(20,20,20),(10,10,10)]
+    for i, c in enumerate(sub_colors):
+        d.rectangle([i*bw, mid_y, (i+1)*bw, mid_y+mid_h], fill=c)
+
+    # Bottom — PLUGE (Picture Line-Up Generation Equipment)
+    bot_y = mid_y + mid_h
+    d.rectangle([0, bot_y, int(W*0.16), H], fill=(10,10,10))    # black
+    d.rectangle([int(W*0.16), bot_y, int(W*0.50), H], fill=(16,16,16)) # superblack
+    d.rectangle([int(W*0.50), bot_y, int(W*0.75), H], fill=(255,255,255)) # white
+    d.rectangle([int(W*0.75), bot_y, W, H], fill=(10,10,10))    # black
+
+    # Labels
+    lfont = load_font("sans", 22)
+    for i, label in enumerate(["GY","YEL","CYN","GRN","MAG","RED","BLU"]):
+        d.text((i*bw + bw//2, bar_h - 28), label, font=lfont,
+               fill=(0,0,0) if colors[i] != (0,0,192) else (255,255,255),
+               anchor="mm")
+
+    # "COLOR BARS" watermark
+    wfont = load_font("bebas", 48)
+    d.text((W//2, H//2 + 40), "COLOUR BARS  ·  SMPTE  ·  trailer-forge",
+           font=wfont, fill=(100,100,100), anchor="mm")
+
+    png = str(out_mp4).replace(".mp4", "_bars.png")
+    img.save(png)
+    png_to_seg(png, duration, fps, out_mp4, fade_in=0, fade_out=0)
+    ok(f"Color bars: {Path(out_mp4).name} ({duration}s)")
+
+
+def render_lower_third(text_top, text_bottom, W, H, out_png,
+                       accent_color=(212,175,55), duration=None):
+    """
+    Lower third graphic — name/title overlay for broadcast or doc style.
+    Transparent PNG that overlays on a video clip.
+    """
+    img  = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    d    = ImageDraw.Draw(img)
+
+    # Bar geometry — lower-left position
+    bar_x    = int(W * 0.06)
+    bar_y    = int(H * 0.72)
+    bar_w    = int(W * 0.44)
+    bar_h    = 80
+    accent_w = 6
+
+    # Dark semi-transparent backing
+    overlay = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    od = ImageDraw.Draw(overlay)
+    od.rectangle([bar_x, bar_y, bar_x+bar_w, bar_y+bar_h],
+                 fill=(5, 5, 15, 210))
+    img = Image.alpha_composite(img, overlay)
+    d   = ImageDraw.Draw(img)
+
+    # Accent bar (left edge)
+    d.rectangle([bar_x, bar_y, bar_x+accent_w, bar_y+bar_h],
+                fill=(*accent_color, 255))
+
+    # Top line — name (bigger, Bebas)
+    tfont = load_font("bebas", 36)
+    d.text((bar_x + accent_w + 14, bar_y + 8),
+           text_top.upper(), font=tfont, fill=(255, 255, 255, 255))
+
+    # Bottom line — title/role (smaller, sans)
+    bfont = load_font("sans", 20)
+    d.text((bar_x + accent_w + 14, bar_y + 48),
+           text_bottom, font=bfont, fill=(*accent_color, 230))
+
+    # Bottom accent line
+    d.rectangle([bar_x + accent_w, bar_y + bar_h - 3,
+                 bar_x + bar_w, bar_y + bar_h],
+                fill=(*accent_color, 180))
+
+    img.save(str(out_png))
+    return str(out_png)
+
+
+def burn_lower_third(clip_path, text_top, text_bottom, out_mp4,
+                     start_sec=0.5, hold_sec=3.5, fade_dur=0.3,
+                     accent_color=(212,175,55)):
+    """
+    Burn a lower third overlay onto a video clip.
+    The text fades in at start_sec, holds for hold_sec, then fades out.
+    """
+    W, H = 1920, 1080
+    # Probe actual video dimensions
+    probe = run(f'ffprobe -v quiet -select_streams v:0 '
+                f'-show_entries stream=width,height '
+                f'-of csv=p=0 "{clip_path}"', check=False)
+    if probe.returncode == 0 and probe.stdout.strip():
+        try:
+            parts = probe.stdout.strip().split(",")
+            W, H = int(parts[0]), int(parts[1])
+        except Exception:
+            pass
+
+    # Render lower third PNG
+    lt_png = Path(tempfile.mktemp(suffix="_lt.png"))
+    render_lower_third(text_top, text_bottom, W, H, lt_png, accent_color)
+
+    end_sec  = start_sec + hold_sec
+    fade_end = end_sec + fade_dur
+
+    # ffmpeg overlay with fade in/out using enable expression
+    filt = (
+        f"[1:v]"
+        f"fade=t=in:st={start_sec}:d={fade_dur}:alpha=1,"
+        f"fade=t=out:st={end_sec}:d={fade_dur}:alpha=1"
+        f"[lt];"
+        f"[0:v][lt]overlay=0:0[out]"
+    )
+    run(f'ffmpeg -y -i "{clip_path}" -i "{lt_png}" '
+        f'-filter_complex "{filt}" -map "[out]" -map "0:a?" '
+        f'-c:v libx264 -preset fast -crf 20 -pix_fmt yuv420p '
+        f'-c:a copy "{out_mp4}"')
+
+    ok(f"Lower third burned: {Path(out_mp4).name}")
+    return str(out_mp4)
+
+
+def assemble_broadcast(manifest_path, generate_missing=True):
+    """
+    Assemble with broadcast elements support.
+    Handles new segment types: countdown, color_bars, lower_third overlay.
+    Falls through to standard assemble() for non-broadcast manifests.
+    """
+    with open(manifest_path) as f:
+        cfg = yaml.safe_load(f)
+
+    # Check if any broadcast segment types are present
+    has_broadcast = any(
+        item.get("type") in ("countdown", "color_bars", "lower_third")
+        for item in cfg.get("timeline", [])
+    )
+
+    if not has_broadcast:
+        return assemble(manifest_path, generate_missing)
+
+    # Patch: expand broadcast segment types then call standard assemble
+    manifest_path = Path(manifest_path).resolve()
+    base_dir      = manifest_path.parent
+    W, H          = cfg.get("resolution", [1920, 1080])
+    fps           = cfg.get("fps", 30)
+    work          = Path(tempfile.mkdtemp(prefix="tf_bc_"))
+
+    new_timeline = []
+    for item in cfg.get("timeline", []):
+        kind = item.get("type", "black")
+
+        if kind == "color_bars":
+            dur    = float(item.get("duration", 10.0))
+            barmp4 = work / "color_bars.mp4"
+            render_color_bars(W, H, dur, fps, str(barmp4))
+            new_timeline.append({
+                "type": "veo_clip",
+                "file": str(barmp4),
+                "trim": [0, dur],
+                "fade_in":  0,
+                "fade_out": 0,
+            })
+
+        elif kind == "countdown":
+            segs = render_countdown(W, H, work, fps)
+            for seg_path, seg_dur in segs:
+                new_timeline.append({
+                    "type": "veo_clip",
+                    "file": seg_path,
+                    "trim": [0, seg_dur],
+                    "fade_in":  0,
+                    "fade_out": 0,
+                })
+
+        elif kind == "lower_third":
+            # lower_third overlays on the NEXT veo_clip — inject a helper tag
+            new_timeline.append({**item, "_lower_third": True})
+
+        else:
+            new_timeline.append(item)
+
+    # Apply lower_third overlays to following clips
+    resolved = []
+    i = 0
+    while i < len(new_timeline):
+        item = new_timeline[i]
+        if item.get("_lower_third") and i+1 < len(new_timeline):
+            next_item = new_timeline[i+1]
+            if next_item.get("type") == "veo_clip":
+                src = base_dir / next_item.get("file", "")
+                if src.exists():
+                    lt_out = work / f"lt_{i}.mp4"
+                    burn_lower_third(
+                        str(src),
+                        item.get("name", "NAME"),
+                        item.get("role", "TITLE"),
+                        str(lt_out),
+                        start_sec    = float(item.get("start_sec", 0.5)),
+                        hold_sec     = float(item.get("hold_sec",  3.0)),
+                        accent_color = tuple(item.get("accent_color", [212,175,55])),
+                    )
+                    resolved.append({**next_item, "file": str(lt_out)})
+                else:
+                    # Clip missing — skip lower third, keep original clip item
+                    log(f"Lower third skipped (clip missing): {next_item.get('file','?')}")
+                    resolved.append(next_item)
+                i += 2
+                continue
+            # No following veo_clip — just drop the lower_third item
+            i += 1
+            continue
+        resolved.append(item)
+        i += 1
+
+    # Write patched manifest with all paths resolved to absolute
+    # (patched manifest lives in work dir so relative paths would break)
+    out_path = base_dir / cfg.get("output", "out/output.mp4")
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+
+    audio_abs = {}
+    for k, v in cfg.get("audio", {}).items():
+        if k in ("music", "voiceover") and v:
+            resolved_path = base_dir / v
+            audio_abs[k] = str(resolved_path) if resolved_path.exists() else v
+        else:
+            audio_abs[k] = v
+
+    patched = work / "patched_manifest.yaml"
+    cfg_patched = {**cfg, "timeline": resolved,
+                   "output": str(out_path),
+                   "audio": audio_abs}
+    with open(patched, "w") as f:
+        yaml.dump(cfg_patched, f, default_flow_style=False)
+
+    result = assemble(str(patched), generate_missing=False)
+    shutil.rmtree(work, ignore_errors=True)
+    return result
+
+
 # ── CLI ────────────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
     p = argparse.ArgumentParser(
@@ -892,41 +1477,8 @@ commands:
   gen-clips   Generate Veo clips only, no render
   deliver     Export master to all platform formats
   export-srt  Convert Whisper JSON → SRT subtitle file
+  export-me   Export Music & Effects stem (no dialogue)
+  storyboard  Generate visual storyboard PNG from manifest
+  broadcast   Assemble with broadcast elements (countdown, color bars, lower thirds)
         """
     )
-    p.add_argument("command",
-                   choices=["build","assemble","gen-clips","preview","deliver","export-srt","clip"])
-    p.add_argument("manifest", nargs="?",
-                   help="Trailer YAML manifest, video path (deliver), Whisper JSON (export-srt), or YouTube URL (clip)")
-    p.add_argument("--targets", nargs="+", default=["youtube", "telegram"],
-                   metavar="PLATFORM",
-                   help=f"Delivery targets (default: youtube telegram). Options: {', '.join(PLATFORM_SPECS)}")
-    p.add_argument("--output", default="output.srt",
-                   help="Output SRT path (for export-srt command)")
-    # clip subcommand options
-    p.add_argument("--top", type=int, default=3,
-                   help="[clip] Number of clips to extract (default: 3)")
-    p.add_argument("--format", choices=["vertical", "horizontal"], default="vertical",
-                   help="[clip] Output format — vertical=9:16, horizontal=16:9 (default: vertical)")
-    p.add_argument("--out", default="out/clips",
-                   help="[clip] Output directory for assembled clips (default: out/clips)")
-    args = p.parse_args()
-
-    if   args.command == "preview":    preview(args.manifest)
-    elif args.command == "assemble":   assemble(args.manifest, generate_missing=False)
-    elif args.command == "build":      assemble(args.manifest, generate_missing=True)
-    elif args.command == "gen-clips":  assemble(args.manifest, generate_missing=True)
-    elif args.command == "deliver":    deliver(args.manifest, targets=args.targets)
-    elif args.command == "export-srt": export_srt(args.manifest, args.output)
-    elif args.command == "clip":
-        if not args.manifest:
-            p.error("'clip' requires a YouTube URL as the second argument")
-        # Import clipper from tools/ directory alongside this script
-        sys.path.insert(0, str(SCRIPT_DIR / "tools"))
-        from clipper import run_clipper
-        run_clipper(
-            url     = args.manifest,
-            top_n   = args.top,
-            fmt     = args.format,
-            out_dir = Path(args.out),
-        )
