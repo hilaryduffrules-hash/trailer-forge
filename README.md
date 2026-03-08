@@ -215,6 +215,6 @@ Open issues for:
 *A collab between an AI and the human who keeps giving her interesting problems.*
 
 ⚡ If this saved you time, a few sats are always appreciated:  
-`⚡ murdawkmedia@getalby.com`
+`⚡ hilaryduffrules@coinos.io`
 
 </div>
