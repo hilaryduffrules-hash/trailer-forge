@@ -1,0 +1,57 @@
+# NIKE STYLE — Athletic / Visceral
+# Philosophy: struggle → triumph. Body as proof. Diegetic sound mixed with music.
+# Text: 2-3 words, once or twice. Tagline only. Never narrate the action.
+# The music DROP lands on the triumph shot, not a text card.
+
+style: nike
+film_grain: false
+color_grade: teal_orange   # slight contrast push
+
+audio:
+  music_vol: 0.55          # music shares space with diegetic sound
+
+timeline:
+  - type: black
+    duration: 0.3           # cold open on sound alone before picture
+
+  # STRUGGLE — tight, rapid (0.5-1.5s each, 8-12 clips total)
+  - type: veo_clip
+    file: clips/face_effort.mp4   # extreme close-up, face, effort
+    trim: [0, 1.0]
+    fade_in: 0.0
+    fade_out: 0.0
+
+  - type: veo_clip
+    file: clips/action_01.mp4    # hands, feet, impact
+    trim: [0, 0.8]
+    fade_in: 0.0
+    fade_out: 0.0
+
+  - type: veo_clip
+    file: clips/face_struggle.mp4
+    trim: [0, 1.2]
+    fade_in: 0.0
+    fade_out: 0.0
+
+  # ... add 5-9 more rapid clips here (0.5-1.5s each) ...
+
+  # HOLD — triumph shot (5s minimum — the music drop lands here)
+  - type: veo_clip
+    file: clips/triumph.mp4
+    trim: [0, 5.5]
+    fade_in: 0.0
+    fade_out: 0.8
+
+  - type: black
+    duration: 0.5
+
+  - type: title_card              # THE ONLY TEXT
+    duration: 3.0
+    lines:
+      - text: "JUST DO IT."       # replace with your tagline
+        font: bebas
+        size: 110
+        color: "#ffffff"
+
+  - type: black
+    duration: 1.5

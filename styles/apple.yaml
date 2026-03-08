@@ -1,0 +1,53 @@
+# APPLE STYLE — Minimal / Product Poetry
+# Philosophy: one idea, perfect execution, music does the emotion, text appears once at the end.
+# Shots: 3-5 total, 4-7s each. Hard cuts. NO text until final card.
+# Music: single instrument or ambient tone. Never a drop.
+
+style: apple
+film_grain: false        # Apple clips are pristine — no grain
+color_grade: neutral     # let the product speak
+
+audio:
+  voiceover_vol: 0.0    # NO voiceover (override if needed)
+  music_vol: 0.85       # music IS the emotion
+
+# Segment template — replace veo_clip files with your content
+timeline:
+  - type: black
+    duration: 1.5
+
+  - type: veo_clip
+    file: clips/beauty_01.mp4    # 5-7s beauty shot — establish world
+    trim: [0, 6.0]
+    fade_in: 0.8
+    fade_out: 0.0                # hard cut out
+
+  - type: veo_clip
+    file: clips/beauty_02.mp4    # product/subject in context
+    trim: [0, 6.0]
+    fade_in: 0.0
+    fade_out: 0.0
+
+  - type: veo_clip
+    file: clips/hero_shot.mp4    # THE reveal — hold it
+    trim: [0, 7.0]
+    fade_in: 0.0
+    fade_out: 1.0
+
+  - type: black
+    duration: 1.5
+
+  - type: title_card             # THE ONLY TEXT IN THE ENTIRE PIECE
+    duration: 4.0
+    lines:
+      - text: "PRODUCT NAME"
+        font: bebas
+        size: 72
+        color: "#ffffff"
+      - text: "one line. nothing more."
+        font: bebas
+        size: 34
+        color: "#888888"
+
+  - type: black
+    duration: 2.5

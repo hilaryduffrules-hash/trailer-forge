@@ -1,0 +1,100 @@
+# BLOCKBUSTER STYLE — Three-Act Reveal
+# Philosophy: world → stakes → spectacle → title. 
+# Three acts with accelerating cut rhythm: 3s cuts → 1s cuts → 0.5s cuts.
+# The POST-TITLE TAG is required — comedy beat, mystery hint, or character moment.
+
+style: blockbuster
+film_grain: false
+color_grade: teal_orange
+
+audio:
+  music_vol: 0.22           # builds through three acts
+
+timeline:
+  - type: black
+    duration: 0.5
+
+  # ACT 1 — WORLD & CHARACTER (~8s, slow, 3-4s cuts)
+  - type: veo_clip
+    file: clips/establishing.mp4
+    trim: [0, 4.0]
+    fade_in: 0.8
+
+  - type: veo_clip
+    file: clips/character.mp4
+    trim: [0, 3.5]
+
+  - type: title_card          # ONE setup card maximum — not a narration
+    duration: 1.5
+    lines:
+      - text: "WHAT THEY THOUGHT WAS SAFE..."
+        font: bebas
+        size: 60
+        color: "#e8d5a3"
+
+  # ACT 2 — STAKES (~10s, medium pace)
+  - type: veo_clip
+    file: clips/threat.mp4
+    trim: [0, 3.0]
+
+  - type: title_card
+    duration: 1.2
+    lines:
+      - text: "CHANGED EVERYTHING."
+        font: bebas
+        size: 84
+        color: "#ffffff"
+
+  - type: veo_clip
+    file: clips/reaction.mp4
+    trim: [0, 2.5]
+
+  # ACT 3 — SPECTACLE (~10s, rapid fire 0.5-1.5s cuts)
+  - type: veo_clip
+    file: clips/action_01.mp4
+    trim: [0, 1.0]
+    fade_in: 0.0
+    fade_out: 0.0
+  - type: veo_clip
+    file: clips/action_02.mp4
+    trim: [0, 0.8]
+    fade_in: 0.0
+    fade_out: 0.0
+  - type: veo_clip
+    file: clips/action_03.mp4
+    trim: [0, 1.2]
+    fade_in: 0.0
+    fade_out: 0.0
+  - type: veo_clip
+    file: clips/money_shot.mp4   # the hero shot — hold it
+    trim: [0, 2.5]
+    fade_out: 0.5
+
+  - type: black
+    duration: 0.4
+
+  # TITLE STING
+  - type: title_card
+    duration: 3.5
+    lines:
+      - text: "T H E"
+        font: bebas
+        size: 54
+        color: "#c4a96b"
+      - text: "FILM TITLE"
+        font: bebas
+        size: 132
+        color: "#ffffff"
+
+  - type: black
+    duration: 0.8
+
+  # POST-TITLE TAG — always. comedy beat, hint, or character moment.
+  - type: veo_clip
+    file: clips/tag_moment.mp4
+    trim: [0, 2.5]
+    fade_in: 0.3
+    fade_out: 0.5
+
+  - type: black
+    duration: 1.5

@@ -385,6 +385,11 @@ trailer-forge/
 │   └── BebasNeue.ttf         # Bundled (SIL Open Font License)
 ├── shots.yaml                # Shot preset library (cinematography vocabulary)
 ├── sfx_map.yaml              # Automated SFX sound design mappings
+├── styles/
+│   ├── apple.yaml            # Minimal / product poetry (1 text card, 95% video)
+│   ├── nike.yaml             # Athletic / visceral (tagline only, music drop on triumph)
+│   ├── a24.yaml              # Arthouse / slow burn (title only, cut on silence)
+│   └── blockbuster.yaml      # Three-act reveal (world → stakes → spectacle → tag)
 ├── examples/
 │   ├── simple.yaml           # Minimal example
 │   ├── the_heist.yaml        # Full demo with presets + SFX
@@ -392,7 +397,8 @@ trailer-forge/
 │   └── the_gathering_v2.yaml    # Frame-perfect sync example (8 Whisper cues, Veo clips)
 └── docs/
     ├── YAML_REFERENCE.md
-    ├── SYNC_GUIDE.md
+    ├── SYNC_GUIDE.md           # Frame-perfect Whisper sync methodology
+    ├── STYLE_GUIDE.md          # Apple / Nike / A24 / Blockbuster style playbooks
     ├── SHOT_PRESETS.md
     └── PRODUCTION_PIPELINE.md
 ```
@@ -408,6 +414,33 @@ trailer-forge/
 | Node.js + `canvas` npm | Better text rendering | Optional (recommended) |
 | `whisper` | Word-level sync | Optional (recommended) |
 | `GEMINI_API_KEY` | Veo 2 clip generation | Optional |
+
+## Style Templates
+
+The default text-heavy percussive style is one option. Five battle-tested styles live in `styles/`:
+
+| Style | Text | Video ratio | Music role | When to use |
+|-------|------|-------------|------------|-------------|
+| `apple.yaml` | 1 card (end only) | 95% | Everything | Product reveal, beauty shots |
+| `nike.yaml` | 2-3 words | 90% | Emotional arc | Athletic, motivational, raw |
+| `a24.yaml` | Title only | 95% + silence | Subversive | Atmospheric, arthouse, horror |
+| `blockbuster.yaml` | 3-5 cards | 75% | Building arc | Action, franchise, three-act |
+| (default) | Many | 30-50% | Punctuation | Comedy, gaming, rapid-fire |
+
+Copy any style file as your project starting point:
+
+```bash
+cp styles/apple.yaml my_project/trailer.yaml
+# Replace clip file paths, add your music, assemble
+python3 trailer_forge.py assemble my_project/trailer.yaml
+```
+
+**Key principle from NotebookLM research:** *"Save graphic integration for the absolute
+final step — visuals are designed to be understood before text arrives."* Professional
+trailers use 80-95% video, with text as surgical punctuation, not narration.
+
+See [`docs/STYLE_GUIDE.md`](docs/STYLE_GUIDE.md) for full philosophy, editing rules,
+Veo prompt strategies, and hybrid patterns for each style.
 
 ## Use with AI Agents
 

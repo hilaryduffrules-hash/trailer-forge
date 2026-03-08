@@ -1,0 +1,54 @@
+# A24 STYLE — Arthouse / Slow Burn
+# Philosophy: atmosphere over plot. Mystery over explanation. Feel it before you understand it.
+# THE MOVE: cut on silence, not on the music beat. Beautiful music over disturbing imagery.
+# Text: film title only, at the very end. Silence is a tool — use more than feels comfortable.
+
+style: a24
+film_grain: true            # always on for A24
+color_grade: teal_orange    # pushed, slightly desaturated
+
+audio:
+  voiceover_vol: 0.0        # NO voiceover — ever
+  music_vol: 0.6            # music is subversive, not triumphant
+
+timeline:
+  - type: black
+    duration: 2.5            # hold the black. make them wait.
+
+  - type: veo_clip
+    file: clips/atmosphere.mp4   # beautiful but slightly wrong
+    trim: [0, 6.0]
+    fade_in: 1.5
+    fade_out: 0.0            # hard cut — the jarring disconnect IS the point
+
+  - type: black
+    duration: 1.2            # silence between shots
+
+  - type: veo_clip
+    file: clips/reveal_slow.mp4  # slow reveal — hold it longer than comfortable
+    trim: [0, 5.0]
+    fade_in: 0.0
+    fade_out: 0.0
+
+  - type: black
+    duration: 0.6
+
+  - type: veo_clip
+    file: clips/wrong_thing.mp4  # the thing that isn't right
+    trim: [0, 3.5]
+    fade_in: 0.0
+    fade_out: 0.0
+
+  - type: black
+    duration: 4.0            # the long silence before title
+
+  - type: title_card
+    duration: 5.0
+    lines:
+      - text: "FILM TITLE"
+        font: bebas
+        size: 84
+        color: "#e4e4e4"     # not pure white — slightly aged
+
+  - type: black
+    duration: 3.0
