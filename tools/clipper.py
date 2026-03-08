@@ -302,6 +302,17 @@ def _build_sentence_windows(sentences: list, min_sec: float, max_sec: float) -> 
         t_start = sent["start"]
         text_parts = [sent["text"]]
 
+        # Handle single-sentence case: if this sentence alone meets min_sec, include it
+        single_dur = sent["end"] - sent["start"]
+        if single_dur >= min_sec:
+            windows.append({
+                "start":          t_start,
+                "end":            sent["end"],
+                "text":           sent["text"],
+                "first_sentence": sent["text"],
+                "duration":       single_dur,
+            })
+
         for j in range(i + 1, n):
             t_end    = sentences[j]["end"]
             duration = t_end - t_start

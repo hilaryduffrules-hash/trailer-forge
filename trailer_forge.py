@@ -1499,8 +1499,12 @@ commands:
                    help="Storyboard columns (default: 4)")
     p.add_argument("--top",    type=int, default=3,
                    help="Clipper: number of clips to extract (default: 3)")
-    p.add_argument("--format", choices=["vertical","horizontal"], default="vertical",
-                   help="Clipper: output format (default: vertical 9:16)")
+    p.add_argument("--format", choices=["vertical","vertical_blur","horizontal"],
+                   default="vertical_blur",
+                   help="Clipper: output format (default: vertical_blur 9:16 blurred bg)")
+    p.add_argument("--zoom", type=float, default=1.0,
+                   help="Clipper: zoom factor for vertical_blur foreground (default: 1.0). "
+                        "Use 1.5-2.0 for talking-head video.")
     # chapters subcommand options
     p.add_argument("--silence", type=float, default=2.0,
                    help="[chapters] Minimum silence gap in seconds (default: 2.0)")
@@ -1523,7 +1527,7 @@ commands:
         sys.path.insert(0, str(SCRIPT_DIR / "tools"))
         from clipper import run_clipper
         run_clipper(args.manifest, top_n=args.top, fmt=args.format,
-                    out_dir=Path(args.output or "out/clips"))
+                    zoom=args.zoom, out_dir=Path(args.output or "out/clips"))
     elif args.command == "chapters":
         sys.path.insert(0, str(SCRIPT_DIR / "tools"))
         from chapters import run_chapters

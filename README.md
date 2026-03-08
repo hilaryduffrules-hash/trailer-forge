@@ -165,18 +165,24 @@ python3 trailer_forge.py clip "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
 # Extract top 5 horizontal clips
 python3 trailer_forge.py clip "https://youtu.be/dQw4w9WgXcQ" --top 5 --format horizontal
 
+# Vertical blur with zoom (talking-head video)
+python3 trailer_forge.py clip "https://youtu.be/..." --format vertical_blur --zoom 1.5
+
 # Custom output directory
 python3 trailer_forge.py clip "https://youtu.be/..." --top 3 --out /tmp/my_clips
 ```
 
 ### How clip detection works
 
-Clipper scores every 45-second sliding window of the transcript using:
-- **Word density** — windows with more speech get higher scores
-- **Sentence completeness** — windows that end on complete sentences score better
+Clipper builds sentence-boundary windows and scores each using curation-style analysis
+(inspired by Opus Clip methodology):
+- **Hook strength (40%)** — does the first sentence grab attention? Penalizes filler starts and context-dependent openers
+- **Narrative arc (30%)** — does the window tell a complete mini-story with setup + payoff?
+- **Authority signals (15%)** — specific numbers, proper nouns, expert vocabulary
+- **Topic coherence (15%)** — is the window focused on one clear idea?
 
-The top N non-overlapping windows are selected and assembled. This means you get
-the most information-dense, cleanly bounded moments from the video — not arbitrary cuts.
+When `GEMINI_API_KEY` is set, scoring is enhanced with Gemini Flash LLM curation.
+The top N non-overlapping windows are selected and assembled on clean sentence boundaries.
 
 ### Output
 
@@ -207,7 +213,9 @@ open one, add title cards or color grades, and re-assemble.
 python3 trailer_forge.py clip <youtube_url> [options]
 
   --top N           Number of clips to extract (default: 3)
-  --format FORMAT   vertical (9:16) or horizontal (16:9) (default: vertical)
+  --format FORMAT   vertical (pillarbox), vertical_blur (blurred bg, default), or horizontal (16:9)
+  --zoom N          Zoom factor for vertical_blur foreground (default: 1.0).
+                    Use 1.5-2.0 for talking-head / person-on-screen video.
   --out DIR         Output directory (default: out/clips)
 ```
 
@@ -295,17 +303,25 @@ ffmpeg -y -i out/my_trailer.mp4 \
 
 ```
 trailer-forge/
-├── trailer_forge.py          # Main CLI
+├── trailer_forge.py          # Main CLI (~1500 lines)
+├── tools/
+│   ├── clipper.py            # YouTube → social clips pipeline
+│   └── chapters.py           # YouTube chapter marker generator
 ├── canvas_renderer/
 │   ├── render_card.js        # Node.js canvas renderer
 │   └── package.json
 ├── fonts/
 │   └── BebasNeue.ttf         # Bundled (SIL Open Font License)
+├── shots.yaml                # Shot preset library (cinematography vocabulary)
+├── sfx_map.yaml              # Automated SFX sound design mappings
 ├── examples/
-│   └── simple.yaml
+│   ├── simple.yaml           # Minimal example
+│   └── the_heist.yaml        # Full demo with presets + SFX
 └── docs/
     ├── YAML_REFERENCE.md
-    └── SYNC_GUIDE.md
+    ├── SYNC_GUIDE.md
+    ├── SHOT_PRESETS.md
+    └── PRODUCTION_PIPELINE.md
 ```
 
 ## Requirements
