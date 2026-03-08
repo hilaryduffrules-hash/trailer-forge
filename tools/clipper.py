@@ -518,32 +518,30 @@ def assemble_clip(clip: dict, index: int, video_path: str,
         )
 
     elif fmt == "vertical_blur":
-        # 9:16 vertical — blurred background with smart zoom + reframe.
+        # 9:16 vertical — blurred background, original centred.
+        # Default: fit-to-width, vertically centred. Works for animations,
+        # screen recordings, diagrams, slides — anything where the whole frame matters.
         #
-        # Background: source blurred + stretched to fill full 1080×1920.
-        # Foreground: zoomed in 1.5× (scale to 1620px wide, crop center 1080px)
-        #             so a person fills more of the vertical space.
-        #             Positioned at upper-third (y=200px from top) since faces
-        #             in 16:9 video sit in the top half of the frame.
-        #
-        # Net result: subject is ~50% larger, no letterbox bars, blur fills rest.
-        W, H   = 1080, 1920
-        ZOOM   = 1.5           # zoom factor (1.0 = fit width, 2.0 = very tight)
-        FG_W   = int(W * ZOOM) # 1620 — wider than canvas so we crop to center
-        FG_Y   = 200           # px from top — upper-third for face framing
+        # For talking-head / person-on-screen video use --zoom 1.5 (or higher)
+        # which punches in and center-crops to keep the subject filling the frame.
+        W, H  = 1080, 1920
+        zoom  = clip.get("zoom", 1.0)   # 1.0 = fit width; >1.0 = punch in
+        if zoom > 1.0:
+            FG_W = int(W * zoom)         # e.g. 1620 at zoom=1.5
+            fg_scale  = f"scale={FG_W}:-2,crop={W}:ih:(iw-{W})/2:0"
+            fg_overlay = f"(W-w)/2:(H-h)/2"   # centred — face is usually there
+        else:
+            fg_scale  = f"scale={W}:-2"
+            fg_overlay = f"(W-w)/2:(H-h)/2"   # centred, fits full frame in view
         fc = (
-            # Background: blur + stretch to fill full frame
             f"[0:v]trim=start={t_start:.3f}:duration={duration:.3f},setpts=PTS-STARTPTS,"
             f"scale={W}:{H}:force_original_aspect_ratio=increase,"
             f"crop={W}:{H},boxblur=20:5,"
             f"fade=t=in:st=0:d=0.4,fade=t=out:st={max(0,duration-0.4):.3f}:d=0.4[bg];"
-            # Foreground: zoom in 1.5×, center-crop to canvas width
             f"[0:v]trim=start={t_start:.3f}:duration={duration:.3f},setpts=PTS-STARTPTS,"
-            f"scale={FG_W}:-2,"
-            f"crop={W}:ih:(iw-{W})/2:0,"
+            f"{fg_scale},"
             f"fade=t=in:st=0:d=0.4,fade=t=out:st={max(0,duration-0.4):.3f}:d=0.4[fg];"
-            # Overlay fg at upper-third position (faces live here in 16:9 content)
-            f"[bg][fg]overlay=(W-w)/2:{FG_Y}[v]"
+            f"[bg][fg]overlay={fg_overlay}[v]"
         )
         cmd = (
             f'ffmpeg -y '
@@ -588,7 +586,7 @@ def assemble_clip(clip: dict, index: int, video_path: str,
 
 # ── Main pipeline entry point ─────────────────────────────────────────────────
 
-def run_clipper(url: str, top_n: int = 3, fmt: str = "vertical_blur",
+def run_clipper(url: str, top_n: int = 3, fmt: str = "vertical_blur", zoom: float = 1.0,
                 out_dir: Path = None) -> List[Path]:
     """
     Full Clipper pipeline: download → transcribe → detect → manifest → assemble.
@@ -620,6 +618,7 @@ def run_clipper(url: str, top_n: int = 3, fmt: str = "vertical_blur",
     print()
     assembled = []
     for i, clip in enumerate(clips, start=1):
+        clip["zoom"] = zoom   # pass zoom factor through to assemble_clip
         generate_manifest(clip, i, video_path, fmt, out_dir)
         out_path = assemble_clip(clip, i, video_path, fmt, out_dir)
         assembled.append(out_path)
@@ -639,6 +638,9 @@ if __name__ == "__main__":
     ap.add_argument("--top",    type=int, default=3,          help="Number of clips (default: 3)")
     ap.add_argument("--format", choices=["vertical","vertical_blur","horizontal"], default="vertical_blur",
                     help="Output format: vertical_blur (blurred bg, default), vertical (pillarbox dark bg), horizontal")
+    ap.add_argument("--zoom", type=float, default=1.0,
+                    help="Zoom factor for vertical_blur foreground (default 1.0=fit width). "
+                         "Use 1.5-2.0 for talking-head/person-on-screen video to punch in on subject.")
     ap.add_argument("--out",    default="out/clips",          help="Output directory")
     args = ap.parse_args()
-    run_clipper(args.url, top_n=args.top, fmt=args.format, out_dir=Path(args.out))
+    run_clipper(args.url, top_n=args.top, fmt=args.format, zoom=args.zoom, out_dir=Path(args.out))
