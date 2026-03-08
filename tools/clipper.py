@@ -137,6 +137,11 @@ _AUTHORITY = re.compile(r'\b\d[\d,.%$BMK]+|\b[A-Z][a-z]+(?:\s[A-Z][a-z]+)+\b')
 _FILLER_START = re.compile(r'^(so|um|uh|and|but|like|you know|basically|anyway|right|okay|well)\b',
                             re.IGNORECASE)
 
+# Self-referential openers — clip assumes prior context the viewer doesn't have
+# "It works by...", "This is why...", "They decided to..." = mid-story
+_CONTEXT_DEPENDENT = re.compile(r'^(it |this |that |they |these |those |he |she |we )',
+                                  re.IGNORECASE)
+
 # Hook-positive openers
 _HOOK_OPENERS = re.compile(
     r"^(what if|here'?s|the real|nobody|most people|the problem|the truth|"
@@ -210,7 +215,9 @@ def _score_window_heuristic(text: str, first_sentence: str) -> float:
     if _AUTHORITY.search(first_sentence):
         hook += 10
     if _FILLER_START.search(first_sentence):
-        hook -= 25   # hard penalty
+        hook -= 25   # hard penalty — filler start kills engagement instantly
+    if _CONTEXT_DEPENDENT.search(first_sentence):
+        hook -= 20   # mid-story penalty — viewer has no idea what "it" refers to
     hook = max(0, min(40, hook))
 
     # ── Narrative arc signals (0–30) ─────────────────────────────────────────
@@ -247,7 +254,7 @@ def _llm_score_window(text: str, first_sentence: str) -> float:
     prompt = f"""You are scoring a transcript window for viral short-form video potential (TikTok/Reels/Shorts).
 
 Score this window 0-100 based on:
-- Hook strength (40pts): Does the FIRST SENTENCE grab attention instantly? Bold claim, question, counter-intuitive statement = high score. Filler words ("so", "um", "and") or mid-thought start = deduct heavily.
+- Hook strength (40pts): Does the FIRST SENTENCE grab attention instantly? Bold claim, question, counter-intuitive statement = high score. Filler words ("so", "um", "and") = heavy deduction. CRITICAL: if the first sentence starts with "it", "this", "that", "they", "these", "he", "she" without establishing context first — the viewer has NO idea what's being referred to. Deduct 20pts. A clip must be self-contained.
 - Narrative arc (30pts): Does this tell a complete mini-story? Setup + development + payoff = high. All explanation with no hook or punchline = low.
 - Authority signals (15pts): Specific numbers, real names, expert vocabulary used naturally.
 - Topic coherence (15pts): Is this focused on ONE clear idea, or drifting?
@@ -511,18 +518,32 @@ def assemble_clip(clip: dict, index: int, video_path: str,
         )
 
     elif fmt == "vertical_blur":
-        # 9:16 vertical — blurred background: source frame blurred+stretched as bg,
-        # original at full width centred on top. Popular "podcast/talking head" look.
-        W, H = 1080, 1920
+        # 9:16 vertical — blurred background with smart zoom + reframe.
+        #
+        # Background: source blurred + stretched to fill full 1080×1920.
+        # Foreground: zoomed in 1.5× (scale to 1620px wide, crop center 1080px)
+        #             so a person fills more of the vertical space.
+        #             Positioned at upper-third (y=200px from top) since faces
+        #             in 16:9 video sit in the top half of the frame.
+        #
+        # Net result: subject is ~50% larger, no letterbox bars, blur fills rest.
+        W, H   = 1080, 1920
+        ZOOM   = 1.5           # zoom factor (1.0 = fit width, 2.0 = very tight)
+        FG_W   = int(W * ZOOM) # 1620 — wider than canvas so we crop to center
+        FG_Y   = 200           # px from top — upper-third for face framing
         fc = (
+            # Background: blur + stretch to fill full frame
             f"[0:v]trim=start={t_start:.3f}:duration={duration:.3f},setpts=PTS-STARTPTS,"
             f"scale={W}:{H}:force_original_aspect_ratio=increase,"
             f"crop={W}:{H},boxblur=20:5,"
             f"fade=t=in:st=0:d=0.4,fade=t=out:st={max(0,duration-0.4):.3f}:d=0.4[bg];"
+            # Foreground: zoom in 1.5×, center-crop to canvas width
             f"[0:v]trim=start={t_start:.3f}:duration={duration:.3f},setpts=PTS-STARTPTS,"
-            f"scale={W}:-2:force_original_aspect_ratio=decrease,"
+            f"scale={FG_W}:-2,"
+            f"crop={W}:ih:(iw-{W})/2:0,"
             f"fade=t=in:st=0:d=0.4,fade=t=out:st={max(0,duration-0.4):.3f}:d=0.4[fg];"
-            f"[bg][fg]overlay=(W-w)/2:(H-h)/2[v]"
+            # Overlay fg at upper-third position (faces live here in 16:9 content)
+            f"[bg][fg]overlay=(W-w)/2:{FG_Y}[v]"
         )
         cmd = (
             f'ffmpeg -y '
