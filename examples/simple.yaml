@@ -1,0 +1,68 @@
+# simple.yaml — minimal trailer-forge example
+# Run: python3 ../trailer_forge.py assemble simple.yaml
+
+output: out/my_trailer.mp4
+resolution: [1920, 1080]
+fps: 30
+film_grain: true
+color_grade: dark_thriller  # none | teal_orange | dark_thriller | vintage
+
+audio:
+  music: music.mp3           # Kevin MacLeod "Impact Moderato" works great
+  voiceover: voiceover.mp3   # ElevenLabs "David - Epic Movie Trailer" recommended
+  music_vol: 0.28
+  voice_vol: 1.0
+  voice_delay: 0.0           # seconds to delay voiceover start
+
+timeline:
+
+  # ── Opening title card ───────────────────────────────────────────────────
+  - type: title_card
+    lines:
+      - {text: "IN A WORLD", font: bebas, size: 200, color: white}
+      - {text: "where nothing goes as planned", font: sans, size: 56, color: gold}
+    duration: 3.0
+    fade_in: 0.70
+    fade_out: 0.30
+
+  # ── Video clip (use your own footage or generate with Veo) ───────────────
+  - type: veo_clip
+    file: clips/opening_shot.mp4
+    trim: [0, 4.0]                # [start_sec, end_sec]
+    fade_in: 0.40
+    fade_out: 0.30
+    # Optional: add a prompt and run with `build` command to auto-generate
+    # prompt: "cinematic wide shot, golden hour, lone figure, film grain"
+
+  # ── Impact title card ────────────────────────────────────────────────────
+  - type: title_card
+    lines:
+      - {text: "ONE CHOICE", font: bebas, size: 175, color: white}
+    duration: 1.2
+    fade_in: 0.06
+    fade_out: 0.06
+
+  # ── Brief black ──────────────────────────────────────────────────────────
+  - type: black
+    duration: 0.4
+
+  # ── Gold revelation word ─────────────────────────────────────────────────
+  - type: title_card
+    lines:
+      - {text: "CHANGED EVERYTHING", font: bebas, size: 140, color: gold}
+    duration: 1.5
+    fade_in: 0.25
+    fade_out: 0.20
+
+  # ── Another black ────────────────────────────────────────────────────────
+  - type: black
+    duration: 0.5
+
+  # ── Main title (always last) ─────────────────────────────────────────────
+  # NOTE: renderer adds "T H E" above automatically — don't include "THE" here
+  - type: main_title
+    title: "DECISION"
+    tagline: "Some choices you can't undo."
+    duration: 5.0
+    fade_in: 0.90
+    fade_out: 0.0

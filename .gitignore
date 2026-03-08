@@ -1,0 +1,27 @@
+# Output
+out/
+*.mp4
+*.mp3
+*.wav
+
+# Working dirs
+tf_*/
+whisper_out/
+
+# Node
+canvas_renderer/node_modules/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Secrets — never commit
+.env
+*.key
+*api_key*

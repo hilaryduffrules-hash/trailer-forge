@@ -1,0 +1,12 @@
+{
+  "name": "trailer-forge-renderer",
+  "version": "1.0.0",
+  "description": "Cinema-quality title card renderer for trailer-forge",
+  "main": "render_card.js",
+  "scripts": {
+    "test": "node render_card.js --type title_card --config '{\"lines\":[{\"text\":\"TEST\",\"font\":\"bebas\",\"size\":200,\"color\":\"white\"}]}' --output /tmp/test_card.png && echo 'OK'"
+  },
+  "dependencies": {
+    "canvas": "^2.11.2"
+  }
+}
