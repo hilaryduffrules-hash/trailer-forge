@@ -86,14 +86,21 @@ def download(url: str) -> Tuple[str, str]:
 
 # ── Step 2: Transcribe ────────────────────────────────────────────────────────
 
-def transcribe(audio_path: str) -> dict:
+def transcribe(audio_path: str, cache: bool = True) -> dict:
     """
     Transcribe audio with local Whisper (base model).
     Returns the full Whisper JSON result dict.
-    """
-    transcript_path = TRANSCRIPT_TMP
 
-    if Path(transcript_path).exists():
+    cache=True  (default): saves transcript to TRANSCRIPT_TMP for reuse across
+                           runs — fast for iteration, not safe for concurrent runs.
+    cache=False:           no disk cache; safe for parallel clipper invocations.
+
+    Whisper invocation: tries direct import first (robust, same env guaranteed);
+    falls back to subprocess python3 -c if whisper is not importable here.
+    """
+    transcript_path = TRANSCRIPT_TMP if cache else None
+
+    if cache and transcript_path and Path(transcript_path).exists():
         existing_age = os.path.getmtime(transcript_path)
         audio_age    = os.path.getmtime(audio_path)
         if existing_age > audio_age:
@@ -102,21 +109,37 @@ def transcribe(audio_path: str) -> dict:
                 return json.load(f)
 
     log("Transcribing with Whisper (base model)…")
-    whisper_cmd = (
-        f'python3 -c "'
-        f'import whisper, json; '
-        f'm = whisper.load_model(\'base\'); '
-        f'r = m.transcribe(\'{audio_path}\', word_timestamps=True); '
-        f'print(json.dumps(r))'
-        f'"'
-    )
-    result = run(whisper_cmd)
-    data   = json.loads(result.stdout)
 
-    with open(transcript_path, "w") as f:
-        json.dump(data, f, indent=2)
+    # ── Strategy 1: direct import (preferred — same Python env, no quoting issues) ──
+    try:
+        import whisper as _whisper
+        model = _whisper.load_model("base")
+        data  = model.transcribe(audio_path, word_timestamps=True)
+        # whisper returns numpy arrays in some fields — make JSON-serialisable
+        data  = json.loads(json.dumps(data, default=lambda o: float(o) if hasattr(o, '__float__') else str(o)))
+        log("Whisper: direct import")
+    except Exception as e:
+        # ── Strategy 2: subprocess fallback (handles separate envs) ──
+        warn(f"Direct whisper import failed ({e}) — falling back to subprocess")
+        # Use a temp script file to avoid quoting fragility with audio_path
+        import tempfile
+        script = tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False)
+        script.write(
+            f"import whisper, json, sys\n"
+            f"m = whisper.load_model('base')\n"
+            f"r = m.transcribe({repr(audio_path)}, word_timestamps=True)\n"
+            f"print(json.dumps(r, default=lambda o: float(o) if hasattr(o, '__float__') else str(o)))\n"
+        )
+        script.close()
+        result = run(f"python3 {script.name}")
+        data   = json.loads(result.stdout)
+        os.unlink(script.name)
 
-    ok(f"Transcript saved → {transcript_path}")
+    if cache and transcript_path:
+        with open(transcript_path, "w") as f:
+            json.dump(data, f, indent=2)
+        ok(f"Transcript saved → {transcript_path}")
+
     return data
 
 
@@ -598,7 +621,7 @@ def assemble_clip(clip: dict, index: int, video_path: str,
 # ── Main pipeline entry point ─────────────────────────────────────────────────
 
 def run_clipper(url: str, top_n: int = 3, fmt: str = "vertical_blur", zoom: float = 1.0,
-                out_dir: Path = None) -> List[Path]:
+                out_dir: Path = None, cache: bool = True) -> List[Path]:
     """
     Full Clipper pipeline: download → transcribe → detect → manifest → assemble.
     Returns list of assembled clip paths.
@@ -618,7 +641,7 @@ def run_clipper(url: str, top_n: int = 3, fmt: str = "vertical_blur", zoom: floa
     audio_path, video_path = download(url)
 
     # 2. Transcribe
-    transcript = transcribe(audio_path)
+    transcript = transcribe(audio_path, cache=cache)
 
     # 3. Detect clip windows
     print()
@@ -652,6 +675,9 @@ if __name__ == "__main__":
     ap.add_argument("--zoom", type=float, default=1.0,
                     help="Zoom factor for vertical_blur foreground (default 1.0=fit width). "
                          "Use 1.5-2.0 for talking-head/person-on-screen video to punch in on subject.")
-    ap.add_argument("--out",    default="out/clips",          help="Output directory")
+    ap.add_argument("--out",      default="out/clips", help="Output directory")
+    ap.add_argument("--no-cache", action="store_true",
+                    help="Disable transcript caching (safe for concurrent runs; slower — re-transcribes every time)")
     args = ap.parse_args()
-    run_clipper(args.url, top_n=args.top, fmt=args.format, zoom=args.zoom, out_dir=Path(args.out))
+    run_clipper(args.url, top_n=args.top, fmt=args.format, zoom=args.zoom,
+                out_dir=Path(args.out), cache=not args.no_cache)

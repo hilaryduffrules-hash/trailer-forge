@@ -1,0 +1,41 @@
+# The Heist — Broadcast Package Example
+#
+# Demonstrates the `broadcast` command's three elements:
+#   1. SMPTE colour bars (technical ref for display calibration)
+#   2. Classic countdown leader (8→2 crosshair, 1s/count)
+#   3. Programme content (your main trailer)
+#   4. Lower third overlay (burned onto the final clip, optional)
+#
+# Usage:
+#   python3 trailer_forge.py broadcast examples/the_heist_broadcast.yaml
+#
+# Output: examples/out/the_heist_broadcast.mp4
+
+output: examples/out/the_heist_broadcast.mp4
+resolution: [1920, 1080]
+fps: 24
+film_grain: false
+color_grade: teal_orange
+
+broadcast:
+  # ── Pre-programme technical elements ───────────────────────────────────────
+  - type: color_bars
+    duration: 5              # seconds of SMPTE 7-bar + PLUGE strip
+
+  - type: countdown
+    duration: 7              # counts 8-7-6-5-4-3-2, 1 second each
+                             # (1 is omitted per broadcast convention)
+
+  # ── Programme ──────────────────────────────────────────────────────────────
+  - type: programme
+    source: examples/out/the_heist.mp4
+
+  # ── Lower third overlay (burned onto a specific clip) ──────────────────────
+  # Uncomment to burn a lower third onto a clip file:
+  # - type: lower_third
+  #   clip: examples/out/the_heist.mp4   # source clip to burn onto
+  #   name: "THE HEIST"
+  #   role: "A trailer-forge demo"
+  #   fade_in: 1.0                        # seconds to fade in
+  #   fade_out: 1.0                        # seconds to fade out
+  #   output: examples/out/the_heist_with_lower_third.mp4

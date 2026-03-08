@@ -88,18 +88,34 @@ def transcribe(audio_path: str) -> dict:
     """
     Transcribe audio with local Whisper (base model).
     Returns the full Whisper JSON result dict with word-level timestamps.
+
+    Tries direct import first (same env, no path-quoting issues);
+    falls back to a temp-script subprocess if whisper is not importable here.
     """
     log("Transcribing with Whisper (base model)…")
-    whisper_cmd = (
-        f'python3 -c "'
-        f'import whisper, json; '
-        f'm = whisper.load_model(\'base\'); '
-        f'r = m.transcribe(\'{audio_path}\', word_timestamps=True); '
-        f'print(json.dumps(r))'
-        f'"'
-    )
-    result = run(whisper_cmd)
-    data = json.loads(result.stdout)
+
+    # ── Strategy 1: direct import ─────────────────────────────────────────────
+    try:
+        import whisper as _whisper
+        model = _whisper.load_model("base")
+        data  = model.transcribe(audio_path, word_timestamps=True)
+        data  = json.loads(json.dumps(data, default=lambda o: float(o) if hasattr(o, '__float__') else str(o)))
+    except Exception as e:
+        # ── Strategy 2: temp-script subprocess ───────────────────────────────
+        warn(f"Direct whisper import failed ({e}) — falling back to subprocess")
+        import tempfile as _tempfile
+        script = _tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False)
+        script.write(
+            f"import whisper, json\n"
+            f"m = whisper.load_model('base')\n"
+            f"r = m.transcribe({repr(audio_path)}, word_timestamps=True)\n"
+            f"print(json.dumps(r, default=lambda o: float(o) if hasattr(o, '__float__') else str(o)))\n"
+        )
+        script.close()
+        result = run(f"python3 {script.name}")
+        data   = json.loads(result.stdout)
+        os.unlink(script.name)
+
     ok("Transcription complete")
     return data
 

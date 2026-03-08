@@ -1505,6 +1505,8 @@ commands:
     p.add_argument("--zoom", type=float, default=1.0,
                    help="Clipper: zoom factor for vertical_blur foreground (default: 1.0). "
                         "Use 1.5-2.0 for talking-head video.")
+    p.add_argument("--no-cache", action="store_true",
+                   help="Clipper: disable transcript caching (use for concurrent runs)")
     # chapters subcommand options
     p.add_argument("--silence", type=float, default=2.0,
                    help="[chapters] Minimum silence gap in seconds (default: 2.0)")
@@ -1527,7 +1529,8 @@ commands:
         sys.path.insert(0, str(SCRIPT_DIR / "tools"))
         from clipper import run_clipper
         run_clipper(args.manifest, top_n=args.top, fmt=args.format,
-                    zoom=args.zoom, out_dir=Path(args.output or "out/clips"))
+                    zoom=args.zoom, out_dir=Path(args.output or "out/clips"),
+                    cache=not getattr(args, "no_cache", False))
     elif args.command == "chapters":
         sys.path.insert(0, str(SCRIPT_DIR / "tools"))
         from chapters import run_chapters

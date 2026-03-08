@@ -213,11 +213,54 @@ open one, add title cards or color grades, and re-assemble.
 python3 trailer_forge.py clip <youtube_url> [options]
 
   --top N           Number of clips to extract (default: 3)
-  --format FORMAT   vertical (pillarbox), vertical_blur (blurred bg, default), or horizontal (16:9)
-  --zoom N          Zoom factor for vertical_blur foreground (default: 1.0).
-                    Use 1.5-2.0 for talking-head / person-on-screen video.
+  --format FORMAT   vertical_blur (blurred bg, default) | vertical (pillarbox dark bg) | horizontal (16:9)
+  --zoom N          Zoom factor for vertical_blur foreground (default: 1.0 = fit width).
+                    Use 1.5–2.0 for talking-head / person-on-screen video to punch in on subject.
+                    No effect on vertical or horizontal formats.
   --out DIR         Output directory (default: out/clips)
+  --no-cache        Disable transcript caching. Default caches to /tmp/ for fast re-runs.
+                    Use --no-cache when running multiple clipper processes in parallel
+                    (prevents concurrent runs clobbering each other's temp files).
 ```
+
+---
+
+## Broadcast Elements
+
+The `broadcast` command assembles a full broadcast package: SMPTE colour bars,
+classic countdown leader, and your programme — exactly as delivered to a broadcaster.
+
+```bash
+python3 trailer_forge.py broadcast examples/the_heist_broadcast.yaml
+```
+
+### Broadcast YAML structure
+
+```yaml
+output: out/the_heist_broadcast.mp4
+resolution: [1920, 1080]
+
+broadcast:
+  - type: color_bars    # SMPTE 7-bar + PLUGE strip
+    duration: 5
+
+  - type: countdown     # 8→2 crosshair leader, 1s/count (1 omitted per convention)
+    duration: 7
+
+  - type: programme     # your main content
+    source: out/the_heist.mp4
+
+  # Optional: burn a lower third overlay onto a clip
+  - type: lower_third
+    clip: out/the_heist.mp4
+    name: "THE HEIST"
+    role: "A trailer-forge demo"
+    fade_in: 1.0
+    fade_out: 1.0
+    output: out/the_heist_with_lower_third.mp4
+```
+
+See `examples/the_heist_broadcast.yaml` for a full annotated example.
 
 ---
 
