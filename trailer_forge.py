@@ -1520,10 +1520,10 @@ commands:
     elif args.command == "storyboard": storyboard(args.manifest, args.output, cols=args.cols)
     elif args.command == "broadcast":  assemble_broadcast(args.manifest, generate_missing=False)
     elif args.command == "clip":
-        from tools.clipper import run_clipper
-        from pathlib import Path as _Path
+        sys.path.insert(0, str(SCRIPT_DIR / "tools"))
+        from clipper import run_clipper
         run_clipper(args.manifest, top_n=args.top, fmt=args.format,
-                    out_dir=_Path(args.output or "out/clips"))
+                    out_dir=Path(args.output or "out/clips"))
     elif args.command == "chapters":
         sys.path.insert(0, str(SCRIPT_DIR / "tools"))
         from chapters import run_chapters
