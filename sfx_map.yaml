@@ -1,0 +1,161 @@
+# sfx_map.yaml — Automated Sound Design Library
+# Maps visual cut types and camera movements to sound effects
+# Based on professional sound design principles (spotting session automation)
+#
+# How it works:
+#   trailer-forge analyzes the timeline YAML and auto-layers SFX based on:
+#   - Cut type (hard cut, fade, whip pan)
+#   - Segment transitions (title_card → veo_clip, black → impact card)
+#   - Shot movement if specified (whip_pan, push_in, pull_out, etc.)
+#
+# Usage in trailer YAML:
+#   audio:
+#     music: assets/music.mp3
+#     voiceover: assets/vo.mp3
+#     sfx: auto   # enable automated sound design
+#
+# Or custom overrides:
+#   - type: title_card
+#     sfx: impact_boom   # force specific SFX on this segment
+
+# ── Transition SFX ────────────────────────────────────────────────────────────
+transitions:
+
+  # Hard cut INTO an impact title card (YOU DID NOT, WHAT THE F***)
+  hard_cut_to_impact:
+    sound: "deep_bass_hit"
+    description: "Low-frequency bass thud on the cut frame"
+    pitch_shift: 0          # semitones (randomize ±2 to avoid repetition)
+    volume: 0.7
+
+  # Hard cut from black INTO a clip
+  hard_cut_to_clip:
+    sound: "subtle_whoosh_in"
+    description: "Light air movement as scene opens"
+    pitch_shift: 1
+    volume: 0.4
+
+  # Clip → title card (scene ending)
+  clip_to_card:
+    sound: "low_drone_swell"
+    description: "Subtle tension swell building under the transition"
+    pitch_shift: 0
+    volume: 0.35
+
+  # Fade to black
+  fade_to_black:
+    sound: "silence"        # let music carry it
+
+  # Black → revelation card (MAGICAL, SPECIAL, FORBIDDEN)
+  black_to_reveal:
+    sound: "shimmer_riser"
+    description: "Ethereal shimmer, slight pitch up"
+    pitch_shift: 2
+    volume: 0.5
+
+# ── Camera Movement SFX ───────────────────────────────────────────────────────
+# Applied when veo_clip has shot.movement specified
+movements:
+
+  whip_pan:
+    sound: "swoosh_fast"
+    description: "Sharp whoosh with motion blur energy"
+    pitch_shift: 3          # higher = more frenetic
+    volume: 0.65
+    apply_eq: true          # cut frequencies below 200Hz (tinny whip)
+
+  push_in:
+    sound: "tension_rise"
+    description: "Subtle pitch rise as camera moves in"
+    volume: 0.3
+
+  pull_out:
+    sound: "low_exhale"
+    description: "Breath out as camera reveals scale"
+    volume: 0.25
+
+  crane:
+    sound: "epic_swell"
+    description: "Full orchestral-style swell for crane shot"
+    volume: 0.45
+
+  dolly_zoom:
+    sound: "vertigo_drone"
+    description: "Dissonant unsettling drone for the Vertigo effect"
+    pitch_shift: -2
+    volume: 0.55
+
+  handheld:
+    sound: "ambient_chaos"
+    description: "Low ambient noise texture for handheld realism"
+    volume: 0.2
+
+# ── Atmospheric Ambience ──────────────────────────────────────────────────────
+# Auto-layered under video clips based on color_grade or genre
+# Prevents the 'empty audio' problem that hurts indie productions
+ambience:
+
+  dark_thriller:
+    sound: "urban_night_low"
+    description: "Distant city hum, very subtle, fills dead air"
+    volume: 0.12
+
+  teal_orange:
+    sound: "light_room_tone"
+    description: "Neutral room tone to avoid complete silence"
+    volume: 0.10
+
+  vintage:
+    sound: "analog_hiss_gentle"
+    description: "Subtle tape hiss for vintage texture"
+    volume: 0.08
+
+  none:
+    sound: "room_tone"
+    description: "Minimal room tone / silence filler"
+    volume: 0.08
+
+# ── Impact Hits ───────────────────────────────────────────────────────────────
+# Named impacts for manual assignment or auto-detection on very short black segments
+impacts:
+  impact_boom:
+    description: "Deep cinematic boom — for major title card hits"
+    volume: 0.8
+    duration_max: 0.8       # seconds — auto-trim to fit black segment
+
+  impact_light:
+    description: "Lighter snap/click — for quick cuts"
+    volume: 0.5
+
+  bass_drop:
+    description: "Sub-bass drop — for dramatic reveals"
+    volume: 0.75
+
+  silence:
+    description: "Explicit silence — no SFX"
+    volume: 0.0
+
+# ── Pitch Variation Rules ─────────────────────────────────────────────────────
+# Prevents repetitive SFX feeling artificial (professional Foley principle)
+pitch_variation:
+  enabled: true
+  # Each time the same SFX fires, randomize pitch within this range (semitones)
+  swoosh_fast:     [-2, +3]
+  impact_boom:     [-1, +1]
+  deep_bass_hit:   [-1, +2]
+  tension_rise:    [0,  +2]
+
+# ── SFX Library Path ──────────────────────────────────────────────────────────
+# trailer-forge looks for these files at:
+#   1. ./sfx/     (project-local)
+#   2. ~/.trailer-forge/sfx/   (user global)
+#   3. Built-in fallbacks (generated via ffmpeg sine waves if missing)
+#
+# File naming: sfx/{sound_name}.wav or sfx/{sound_name}.mp3
+# Recommend: 44.1kHz, 16-bit WAV, stereo
+#
+# Free SFX sources:
+#   - freesound.org (CC licensed)
+#   - zapsplat.com (free tier)
+#   - soundsnap.com
+#   - Kevin MacLeod (incompetech.com) for musical stings
