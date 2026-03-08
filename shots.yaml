@@ -1,0 +1,184 @@
+# shots.yaml — Cinematic Shot Prompt Library
+# Based on professional cinematography vocabulary (StudioBinder, No Film School)
+# Formula: [Shot Type] + [Camera Movement] + [Angle] + [Lighting] + [Mood] + [Technical]
+#
+# Usage in trailer YAML:
+#   - type: veo_clip
+#     shot: {type: ECU, movement: push_in, angle: dutch, mood: tense, fps: 24}
+#     subject: "a man's hand gripping a door handle"
+#     file: clips/door_grip.mp4
+#
+# Or use a named preset:
+#   - type: veo_clip
+#     preset: thriller_reveal
+#     subject: "a dark hallway"
+#     file: clips/hallway.mp4
+
+# ── Shot Types ────────────────────────────────────────────────────────────────
+shot_types:
+  ECU:     "Extreme Close-Up, filling the frame entirely with a single detail"
+  CU:      "Close-Up, subject's face filling the screen"
+  MS:      "Medium Shot, subject from the waist up"
+  cowboy:  "American/Cowboy Shot, framed from mid-thigh up"
+  FS:      "Full Shot, subject head to toe in their environment"
+  LS:      "Long Shot, subject small against a wide environment"
+  ELS:     "Extreme Long Shot, establishing epic scale and scope"
+  OTS:     "Over-the-Shoulder shot, looking past one subject to another"
+  POV:     "Point-of-View, first-person perspective of the character"
+  two:     "Two Shot, both subjects in frame together"
+
+# ── Camera Movements ──────────────────────────────────────────────────────────
+movements:
+  static:       "static, camera completely motionless on a tripod"
+  push_in:      "slow dolly push-in moving closer to the subject, building tension"
+  pull_out:     "slow dolly pull-out retreating from the subject, revealing isolation"
+  tracking:     "tracking/dolly shot moving laterally through space following the subject"
+  whip_pan:     "rapid whip pan with motion blur, frenetic energy"
+  arc:          "arc shot circling semi-circularly around the subject"
+  dolly_zoom:   "dolly zoom/Vertigo effect, camera moves while lens zooms opposite direction, background warps"
+  handheld:     "handheld unstabilized, raw documentary realism"
+  crane:        "crane/boom shot sweeping vertically through the air"
+  steadicam:    "Steadicam smooth glide following the subject"
+
+# ── Camera Angles ─────────────────────────────────────────────────────────────
+angles:
+  eye:          "eye level, naturalistic and neutral"
+  low:          "low angle looking up, imparting power and dominance"
+  high:         "high angle looking down, subject feels vulnerable or insignificant"
+  dutch:        "Dutch angle, camera canted/tilted on its axis, psychological tension"
+  overhead:     "bird's-eye overhead, looking straight down"
+
+# ── Lighting ──────────────────────────────────────────────────────────────────
+lighting:
+  high_key:     "bright high-key lighting, even exposure, minimal shadows"
+  side:         "harsh side lighting / Rembrandt, high contrast, deep shadows"
+  warm:         "soft warm bounce lighting, intimate and cozy"
+  cold:         "cold blue-tinted light, clinical or ominous"
+  motivated:    "motivated practical lighting from a window or lamp source"
+  shallow:      "shallow depth of field, subject sharp, background beautifully blurred"
+  deep:         "deep focus, everything front to back sharp"
+  rack:         "rack focus shift mid-shot from foreground to background subject"
+
+# ── Mood Keywords ─────────────────────────────────────────────────────────────
+moods:
+  tense:        "tense, suspenseful, foreboding"
+  unsettling:   "unsettling, disorienting, psychologically uneasy"
+  intimate:     "intimate, emotionally vulnerable, personal"
+  isolated:     "isolated, lonely, contemplative"
+  energetic:    "energetic, frenetic, high-velocity"
+  majestic:     "majestic, epic, grand in scale"
+  raw:          "raw, chaotic, documentary realism"
+  melancholic:  "melancholic, quiet, bittersweet"
+  comedic:      "light, comedic, warm and approachable"
+
+# ── Technical ─────────────────────────────────────────────────────────────────
+technical:
+  cinematic_24:    "24fps, cinematic motion, film grain"
+  slowmo_60:       "60fps for smooth slow motion playback"
+  slowmo_120:      "120fps for extreme slow motion"
+  grain:           "subtle film grain texture"
+  raw_look:        "high-fidelity detail, cinematic RAW camera aesthetic"
+
+# ── Genre Presets ─────────────────────────────────────────────────────────────
+# Named combinations for common genres — use as shorthand in your YAML
+genre_presets:
+
+  thriller_reveal:
+    description: "Object or face slowly revealed with dread"
+    shot_type: ECU
+    movement: push_in
+    angle: dutch
+    lighting: side
+    mood: unsettling
+    technical: cinematic_24
+    template: "Extreme Close-Up, slow dolly push-in, Dutch angle, harsh high-contrast side lighting, shallow focus, {subject}, unsettling and tense mood, 24fps film grain, cinematic"
+
+  thriller_chase:
+    description: "Subject pursued through a space"
+    shot_type: MS
+    movement: handheld
+    angle: eye
+    lighting: motivated
+    mood: raw
+    technical: cinematic_24
+    template: "Medium Shot, handheld unstabilized camera following {subject} through the space, eye level, motivated practical lighting, raw chaotic documentary energy, 24fps, film grain"
+
+  thriller_dread:
+    description: "Character confronting something wrong — vertigo effect"
+    shot_type: MS
+    movement: dolly_zoom
+    angle: eye
+    lighting: cold
+    mood: unsettling
+    technical: cinematic_24
+    template: "Medium Shot of {subject}, dolly zoom Vertigo effect — camera pulls back while lens zooms in, background warping and stretching, eye level, cold blue light, psychologically disorienting and tense, 24fps cinematic"
+
+  commercial_energy:
+    description: "Product or athlete in high-energy motion"
+    shot_type: MS
+    movement: tracking
+    angle: eye
+    lighting: high_key
+    mood: energetic
+    technical: slowmo_60
+    template: "Medium Shot tracking alongside {subject} in motion, smooth lateral tracking shot, eye level, bright high-key lighting, deep focus, energetic and frenetic commercial style, 60fps for slow motion"
+
+  commercial_product:
+    description: "Clean product hero shot"
+    shot_type: ECU
+    movement: arc
+    angle: low
+    lighting: high_key
+    mood: majestic
+    technical: cinematic_24
+    template: "Extreme Close-Up arc shot circling {subject}, low angle looking up to impart importance, clean high-key studio lighting, shallow focus with beautiful bokeh background, polished commercial aesthetic, 24fps"
+
+  commercial_lifestyle:
+    description: "Person enjoying product in natural environment"
+    shot_type: MS
+    movement: steadicam
+    angle: eye
+    lighting: warm
+    mood: intimate
+    technical: cinematic_24
+    template: "Medium Shot Steadicam following {subject}, eye level, soft warm natural lighting, shallow focus, intimate and authentic lifestyle commercial feel, 24fps"
+
+  drama_dialogue:
+    description: "Two people in conversation — emotional beat"
+    shot_type: OTS
+    movement: push_in
+    angle: high
+    lighting: warm
+    mood: intimate
+    technical: cinematic_24
+    template: "Over-the-Shoulder shot looking past the foreground character at {subject}, slow push-in dolly, slight high angle making subject feel vulnerable, soft warm bounce lighting, rack focus shift, intimate and emotionally charged, 24fps cinematic realism"
+
+  drama_isolation:
+    description: "Character alone, feeling small against the world"
+    shot_type: ELS
+    movement: pull_out
+    angle: high
+    lighting: motivated
+    mood: isolated
+    technical: cinematic_24
+    template: "Extreme Long Shot of {subject} small against a vast environment, slow dolly pull-out revealing scale, high angle looking down, motivated natural lighting, deeply isolated and melancholic mood, 24fps film grain"
+
+  comedy_reaction:
+    description: "Character's comedic response to something"
+    shot_type: MS
+    movement: static
+    angle: eye
+    lighting: high_key
+    mood: comedic
+    technical: cinematic_24
+    template: "Medium Shot of {subject} reacting, static camera on tripod, eye level, bright high-key lighting, warm comedic tone, clean and readable, 24fps"
+
+  epic_establish:
+    description: "Grand establishing shot of a location"
+    shot_type: ELS
+    movement: crane
+    angle: overhead
+    lighting: motivated
+    mood: majestic
+    technical: cinematic_24
+    template: "Extreme Long Shot crane/boom sweeping across {subject} from above, bird's-eye overhead perspective descending to reveal scale, motivated natural golden hour lighting, epic and majestic mood, 24fps, film grain"

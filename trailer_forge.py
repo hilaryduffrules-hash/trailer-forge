@@ -480,3 +480,110 @@ if __name__ == "__main__":
     if   args.command == "preview":   preview(args.manifest)
     elif args.command == "assemble":  assemble(args.manifest, generate_missing=False)
     else:                             assemble(args.manifest, generate_missing=True)
+
+# ── PLATFORM DELIVERY (NEW) ───────────────────────────────────────────────────
+def deliver(video_path, targets=None, **kwargs):
+    """
+    Multi-platform delivery — one master → all output formats.
+    
+    targets: list of ["youtube", "telegram", "instagram_feed", "instagram_reel", "tiktok", "theatrical"]
+    """
+    if not targets:
+        targets = ["youtube", "telegram"]
+    
+    video_path = Path(video_path)
+    if not video_path.exists():
+        raise FileNotFoundError(f"Video not found: {video_path}")
+    
+    out_dir = video_path.parent / "delivered"
+    out_dir.mkdir(exist_ok=True)
+    
+    deliveries = {
+        "youtube":         {"res": "1920x1080", "crf": 18, "container": "mp4", "audio": "192k"},
+        "telegram":        {"res": "1280x720",  "crf": 30, "container": "mp4", "audio": "128k", "max_mb": 15},
+        "instagram_feed":  {"res": "1080x1080", "crf": 26, "container": "mp4", "audio": "128k"},
+        "instagram_reel":  {"res": "1080x1920", "crf": 26, "container": "mp4", "audio": "128k"},
+        "tiktok":          {"res": "1080x1920", "crf": 26, "container": "mp4", "audio": "128k", "max_mb": 287},
+    }
+    
+    print(f"\n📦 MULTI-PLATFORM DELIVERY")
+    print(f"   Master: {video_path.name}\n")
+    
+    for target in targets:
+        if target not in deliveries:
+            warn(f"Unknown target '{target}'"); continue
+        
+        spec = deliveries[target]
+        out_file = out_dir / f"{video_path.stem}_{target}.mp4"
+        res = spec["res"]
+        crf = spec["crf"]
+        abr = spec["audio"]
+        
+        print(f"  [{target}] {res} (crf={crf}, audio={abr})…", flush=True)
+        run(f'ffmpeg -y -i "{video_path}" '
+            f'-vf "scale={res.split("x")[0]}:{res.split("x")[1]}:force_original_aspect_ratio=decrease,pad={res.split("x")[0]}:{res.split("x")[1]}:(ow-iw)/2:(oh-ih)/2" '
+            f'-c:v libx264 -preset slow -crf {crf} -pix_fmt yuv420p '
+            f'-c:a aac -b:a {abr} '
+            f'-movflags +faststart -y "{out_file}"')
+        
+        size_mb = out_file.stat().st_size / (1024*1024)
+        ok(f"{out_file.name} ({size_mb:.1f}MB)")
+    
+    print(f"\n✅ Delivered to: {out_dir}/")
+
+# ── SUBTITLE EXPORT (NEW) ─────────────────────────────────────────────────────
+def export_srt(voiceover_json, output_srt="output.srt"):
+    """
+    Generate SRT subtitles from Whisper JSON output.
+    
+    Usage: export_srt("whisper_out/voiceover.json", "subtitles.srt")
+    """
+    try:
+        import json
+    except:
+        print("JSON not available"); return
+    
+    with open(voiceover_json) as f:
+        data = json.load(f)
+    
+    def ts(sec):
+        h = int(sec // 3600)
+        m = int((sec % 3600) // 60)
+        s = sec % 60
+        return f"{h:02d}:{m:02d}:{s:06.3f}".replace(".", ",")
+    
+    lines = []
+    i = 1
+    for seg in data.get("segments", []):
+        for w in seg.get("words", []):
+            word = w["word"].strip()
+            start = w["start"]
+            end = w["end"]
+            lines.append(f"{i}\n{ts(start)} --> {ts(end)}\n{word}\n")
+            i += 1
+    
+    Path(output_srt).write_text("\n".join(lines))
+    ok(f"Subtitle export: {output_srt} ({i-1} words)")
+
+# ── EXTENDED CLI ──────────────────────────────────────────────────────────────
+if __name__ == "__main__":
+    p = argparse.ArgumentParser(prog="trailer-forge",
+                                description="Build cinematic video trailers from YAML")
+    p.add_argument("command",
+                   choices=["build","assemble","gen-clips","preview","deliver","export-srt"])
+    p.add_argument("manifest", nargs="?", help="Path to trailer YAML manifest")
+    p.add_argument("--targets", nargs="+", default=["youtube"],
+                   help="Delivery targets: youtube telegram instagram_feed instagram_reel tiktok")
+    p.add_argument("--output", default="output.srt", help="SRT output path")
+    args = p.parse_args()
+
+    if   args.command == "preview":
+        preview(args.manifest)
+    elif args.command == "assemble":
+        assemble(args.manifest, generate_missing=False)
+    elif args.command == "deliver":
+        deliver(args.manifest, targets=args.targets)
+    elif args.command == "export-srt":
+        export_srt(args.manifest, args.output)
+    else:
+        assemble(args.manifest, generate_missing=True)
