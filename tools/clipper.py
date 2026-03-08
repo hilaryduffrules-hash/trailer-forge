@@ -131,7 +131,9 @@ def _score_window(segments: list, t_start: float, t_end: float) -> Tuple[float, 
     """
     Score a time window [t_start, t_end] by:
       - word count (density)
-      - sentence boundary count (completeness)
+      - sentence boundary count (completeness — complete thoughts score higher)
+      - question marks (engagement — questions pull audiences in)
+      - window starts on a sentence boundary (bonus — clean in-point)
     Returns (score, combined_text).
     """
     words = []
@@ -139,20 +141,33 @@ def _score_window(segments: list, t_start: float, t_end: float) -> Tuple[float, 
     for seg in segments:
         seg_start = seg.get("start", 0.0)
         seg_end   = seg.get("end",   0.0)
-        # Overlap check: segment must overlap the window
         if seg_end < t_start or seg_start > t_end:
             continue
         text_parts.append(seg.get("text", "").strip())
-        # Count individual words
         for w in seg.get("words", []):
             ws = w.get("start", seg_start)
             if t_start <= ws <= t_end:
                 words.append(w.get("word", ""))
 
-    text      = " ".join(text_parts)
-    n_words   = len(words) if words else len(text.split())
-    n_sent    = _sentence_boundaries(text)
-    score     = n_words * 1.0 + n_sent * 8.0   # sentences weighted heavily
+    text    = " ".join(text_parts)
+    n_words = len(words) if words else len(text.split())
+    n_sent  = _sentence_boundaries(text)
+    n_quest = len(re.findall(r'\?', text))
+
+    # Bonus if the window starts within 2s of a sentence boundary
+    # (ensures clips open on a clean thought, not mid-sentence)
+    clean_start_bonus = 0
+    for seg in segments:
+        seg_text  = seg.get("text", "")
+        seg_start = seg.get("start", 0.0)
+        if abs(seg_start - t_start) < 2.0 and re.search(r'[.!?]\s*$', seg_text.strip()):
+            clean_start_bonus = 15
+            break
+
+    score = (n_words * 1.0
+             + n_sent  * 8.0
+             + n_quest * 12.0   # questions are engaging
+             + clean_start_bonus)
     return score, text
 
 
@@ -243,6 +258,8 @@ def generate_manifest(clip: dict, index: int, video_path: str,
         "fps":          30,
         "film_grain":   False,
         "color_grade":  "teal_orange",
+        # Uncomment audio block to add music bed:
+        # "audio": {"music": "assets/music.mp3", "music_vol": 0.25, "sfx": "auto"},
         "clipper_meta": {
             "source":   video_path,
             "start":    round(clip["start"], 3),
@@ -253,6 +270,9 @@ def generate_manifest(clip: dict, index: int, video_path: str,
             "preview":  preview_text,
         },
         "timeline": [
+            # Optional: add a title card hook before the clip
+            # {"type": "title_card", "duration": 1.5,
+            #  "lines": [{"text": "CLIP TITLE", "font": "bebas", "size": 80}]},
             {
                 "type":      "veo_clip",
                 "file":      video_path,
@@ -260,6 +280,8 @@ def generate_manifest(clip: dict, index: int, video_path: str,
                 "fade_in":   0.4,
                 "fade_out":  0.4,
             }
+            # Optional: add lower third for speaker name:
+            # {"type": "lower_third", "name": "SPEAKER NAME", "role": "Title"}
         ],
     }
 

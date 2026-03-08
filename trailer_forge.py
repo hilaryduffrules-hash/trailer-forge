@@ -1480,5 +1480,39 @@ commands:
   export-me   Export Music & Effects stem (no dialogue)
   storyboard  Generate visual storyboard PNG from manifest
   broadcast   Assemble with broadcast elements (countdown, color bars, lower thirds)
+  clip        YouTube → transcribe → detect → social-ready clips
         """
     )
+    p.add_argument("command",
+                   choices=["build","assemble","gen-clips","preview",
+                            "deliver","export-srt","export-me",
+                            "storyboard","broadcast","clip"])
+    p.add_argument("manifest",
+                   help="YAML manifest / video path / Whisper JSON / YouTube URL")
+    p.add_argument("--targets", nargs="+", default=["youtube", "telegram"],
+                   metavar="PLATFORM",
+                   help=f"Delivery platforms. Options: {', '.join(PLATFORM_SPECS)}")
+    p.add_argument("--output", default=None,
+                   help="Output path override")
+    p.add_argument("--cols",   type=int, default=4,
+                   help="Storyboard columns (default: 4)")
+    p.add_argument("--top",    type=int, default=3,
+                   help="Clipper: number of clips to extract (default: 3)")
+    p.add_argument("--format", choices=["vertical","horizontal"], default="vertical",
+                   help="Clipper: output format (default: vertical 9:16)")
+    args = p.parse_args()
+
+    if   args.command == "preview":    preview(args.manifest)
+    elif args.command == "assemble":   assemble(args.manifest, generate_missing=False)
+    elif args.command == "build":      assemble(args.manifest, generate_missing=True)
+    elif args.command == "gen-clips":  assemble(args.manifest, generate_missing=True)
+    elif args.command == "deliver":    deliver(args.manifest, targets=args.targets)
+    elif args.command == "export-srt": export_srt(args.manifest, args.output or "output.srt")
+    elif args.command == "export-me":  export_me(args.manifest, args.output)
+    elif args.command == "storyboard": storyboard(args.manifest, args.output, cols=args.cols)
+    elif args.command == "broadcast":  assemble_broadcast(args.manifest, generate_missing=False)
+    elif args.command == "clip":
+        from tools.clipper import run_clipper
+        from pathlib import Path as _Path
+        run_clipper(args.manifest, top_n=args.top, fmt=args.format,
+                    out_dir=_Path(args.output or "out/clips"))
