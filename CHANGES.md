@@ -24,3 +24,12 @@ All of the following were added directly to `main`. Future changes will come thr
 - `tools-knowledge-vault/Workflows/Film-Production-Pipeline-Research.md` — Research synthesis
 - `tools-knowledge-vault/Workflows/trailer-forge-roadmap.md` — 7-phase implementation plan
 
+## Session: Mar 11, 2026 (Hilary Kai)
+
+### 🎬 YouTube Polish & Automation
+- **Thumbnail Optimization** — Auto-resizing logic to stay under YouTube's strict 2MB limit (1280x720 LANCZOS).
+- **OAuth Management** — Explicit handling for YouTube "management" scopes (needed for banners/deletion).
+- **Channel Link Awareness** — Workflow fix: main site links now point to channel (`@ItsHilaryKai`) instead of specific video IDs.
+- **Playlist Integration** — Added "The Claw Cast" playlist automation logic.
+- **Workflow Resilience** — Agents now prompt for the manual `code=` when headless redirects fail.
+
