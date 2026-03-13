@@ -1,0 +1,134 @@
+# TESTIMONIAL — 45s customer story
+# Structure: quote cards + B-roll + CTA. Trust-building.
+# Style: authentic, warm, personal.
+#
+# Usage:
+#   python3 trailer_forge.py preview examples/testimonial.yaml
+#   python3 trailer_forge.py build   examples/testimonial.yaml
+
+title: "CUSTOMER STORY — TESTIMONIAL"
+resolution: [1920, 1080]
+fps: 24
+color_grade: vintage
+film_grain: true
+output: out/testimonial_film.mp4
+
+audio:
+  music: assets/music_acoustic.mp3   # warm acoustic guitar or soft piano
+  music_vol: 0.40
+  voiceover: assets/customer_vo.mp3
+  voice_vol: 1.0
+
+timeline:
+
+  # ── THE QUOTE (0–6s) ────────────────────────────────────────────────────────
+
+  - type: black
+    duration: 1.0
+
+  - type: title_card
+    duration: 4.0
+    fade_in: 1.0
+    fade_out: 0.5
+    lines:
+      - text: "\"I WAS SKEPTICAL"
+        font: serif
+        size: 52
+        color: white
+      - text: "AT FIRST.\""
+        font: serif
+        size: 52
+        color: white
+
+  - type: black
+    duration: 0.5
+
+  # ── THE REALIZATION (6–20s) ──────────────────────────────────────────────────
+
+  # Authentic customer B-roll
+  - type: veo_clip
+    prompt: "person in warm living room, looking thoughtful then smiling, natural window light, cinematic handheld, authentic feel"
+    file: clips/test_customer_face.mp4
+    trim: [0, 6]
+    fade_in: 0.5
+    fade_out: 0.0
+
+  - type: black
+    duration: 0.25
+
+  - type: title_card
+    duration: 3.0
+    lines:
+      - text: "THEN I TRIED"
+        font: sans
+        size: 40
+        color: grey
+      - text: "PRODUCT NAME"
+        font: bebas
+        size: 90
+        color: gold
+
+  - type: black
+    duration: 0.25
+
+  # Product in real use
+  - type: veo_clip
+    prompt: "hands using product in everyday setting, warm lighting, natural, no studio polish, authentic user experience"
+    file: clips/test_product_use.mp4
+    trim: [0, 5]
+    fade_in: 0.0
+    fade_out: 0.0
+
+  # ── THE IMPACT (20–35s) ──────────────────────────────────────────────────────
+
+  - type: black
+    duration: 0.3
+
+  - type: title_card
+    duration: 3.5
+    lines:
+      - text: "NOW I CAN'T IMAGINE"
+        font: serif
+        size: 44
+        color: white
+      - text: "MY DAY WITHOUT IT."
+        font: serif
+        size: 44
+        color: white
+
+  - type: black
+    duration: 0.3
+
+  # Happy result clip
+  - type: veo_clip
+    prompt: "person achieving their goal, joyful, successful, outdoors, beautiful backlight, authentic triumph"
+    file: clips/test_success_moment.mp4
+    trim: [0, 7]
+    fade_in: 0.0
+    fade_out: 0.5
+
+  # ── THE CLOSE (35–45s) ──────────────────────────────────────────────────────
+
+  - type: black
+    duration: 0.8
+
+  - type: title_card
+    duration: 4.0
+    fade_in: 0.5
+    fade_out: 0.5
+    lines:
+      - text: "TRUSTED BY 50,000+"
+        font: sans
+        size: 32
+        color: grey
+      - text: "JOIN THE COMMUNITY"
+        font: bebas
+        size: 80
+        color: white
+      - text: "yoursite.com"
+        font: sans
+        size: 36
+        color: gold
+
+  - type: black
+    duration: 2.0

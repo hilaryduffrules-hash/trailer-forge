@@ -1,0 +1,198 @@
+# DIRECT RESPONSE AD — 30s commercial template
+# Structure: hook → problem → solution → CTA → price reveal
+# Style: fast cuts, bold text, high energy
+# Recommended format: 16x9 (YouTube pre-roll) or 9x16 (TikTok/Reels)
+#
+# Usage:
+#   python3 trailer_forge.py preview examples/direct-response-ad.yaml
+#   python3 trailer_forge.py build   examples/direct-response-ad.yaml --format 9x16
+
+title: "PRODUCT NAME — Direct Response Ad"
+resolution: [1920, 1080]   # override with --format 9x16 for vertical
+fps: 30
+color_grade: none          # clean, not cinematic — commercial look
+film_grain: false
+output: out/direct_response_16x9.mp4
+
+audio:
+  music: assets/music_upbeat.mp3    # high-energy track — 120-140bpm
+  music_vol: 0.45
+  voiceover: assets/vo_direct.mp3   # optional punchy VO
+  voice_vol: 1.0
+
+timeline:
+
+  # ── HOOK (0–3s) — grab attention immediately ────────────────────────────────
+
+  - type: title_card
+    duration: 1.2
+    fade_in: 0.0
+    fade_out: 0.0
+    lines:
+      - text: "TIRED OF THIS?"
+        font: bebas
+        size: 120
+        color: white
+
+  - type: black
+    duration: 0.2
+
+  # Pain point clip — show the problem
+  - type: veo_clip
+    prompt: "frustrated person struggling with a common problem, relatable, authentic, warm lighting"
+    file: clips/dr_hook_problem.mp4
+    trim: [0, 4]
+    fade_in: 0.0
+    fade_out: 0.0
+
+  - type: black
+    duration: 0.15
+
+  # ── PROBLEM (3–9s) — agitate the pain ──────────────────────────────────────
+
+  - type: title_card
+    duration: 1.5
+    fade_in: 0.1
+    fade_out: 0.0
+    lines:
+      - text: "THE OLD WAY"
+        font: sans
+        size: 56
+        color: grey
+      - text: "DOESN'T WORK"
+        font: bebas
+        size: 96
+        color: white
+
+  - type: black
+    duration: 0.15
+
+  # Problem montage — fast cuts
+  - type: veo_clip
+    prompt: "person looking disappointed, product failure montage, relatable frustration, fast-cut commercial style"
+    file: clips/dr_problem_01.mp4
+    trim: [0, 2]
+    fade_in: 0.0
+    fade_out: 0.0
+
+  - type: veo_clip
+    prompt: "close-up of wasted money or time, symbolic of the problem, clean commercial visual"
+    file: clips/dr_problem_02.mp4
+    trim: [0, 2]
+    fade_in: 0.0
+    fade_out: 0.0
+
+  - type: black
+    duration: 0.15
+
+  # ── SOLUTION (9–18s) — introduce the product ────────────────────────────────
+
+  - type: title_card
+    duration: 1.8
+    fade_in: 0.2
+    fade_out: 0.0
+    lines:
+      - text: "INTRODUCING"
+        font: sans
+        size: 44
+        color: grey
+      - text: "PRODUCT NAME"
+        font: bebas
+        size: 110
+        color: gold
+
+  - type: black
+    duration: 0.15
+
+  # Hero product shot
+  - type: veo_clip
+    prompt: "pristine hero product shot, clean white or dark background, dramatic lighting, product reveal, commercial photography quality"
+    file: clips/dr_product_hero.mp4
+    trim: [0, 4]
+    fade_in: 0.3
+    fade_out: 0.0
+
+  - type: black
+    duration: 0.15
+
+  # Benefit clip — product in use
+  - type: veo_clip
+    prompt: "happy satisfied person using the product effortlessly, before/after transformation energy, clean and bright"
+    file: clips/dr_benefit_01.mp4
+    trim: [0, 3]
+    fade_in: 0.0
+    fade_out: 0.0
+
+  - type: black
+    duration: 0.15
+
+  # ── SOCIAL PROOF (18–23s) ────────────────────────────────────────────────────
+
+  - type: title_card
+    duration: 2.0
+    fade_in: 0.1
+    fade_out: 0.0
+    lines:
+      - text: "OVER 10,000 HAPPY CUSTOMERS"
+        font: sans
+        size: 48
+        color: white
+      - text: "★★★★★"
+        font: bebas
+        size: 80
+        color: gold
+
+  - type: black
+    duration: 0.15
+
+  # ── CTA (23–28s) — urgency + call to action ─────────────────────────────────
+
+  - type: veo_clip
+    prompt: "person pointing to camera, excited, direct address, call to action energy, bright studio lighting"
+    file: clips/dr_cta_point.mp4
+    trim: [0, 3]
+    fade_in: 0.0
+    fade_out: 0.0
+
+  - type: black
+    duration: 0.15
+
+  - type: title_card
+    duration: 2.5
+    fade_in: 0.2
+    fade_out: 0.0
+    lines:
+      - text: "LIMITED TIME OFFER"
+        font: sans
+        size: 44
+        color: grey
+      - text: "GET 50% OFF"
+        font: bebas
+        size: 120
+        color: gold
+      - text: "ONLY $XX TODAY"
+        font: sans
+        size: 52
+        color: white
+
+  - type: black
+    duration: 0.15
+
+  # ── PRICE REVEAL + CLOSE (28–32s) ───────────────────────────────────────────
+
+  - type: title_card
+    duration: 2.0
+    fade_in: 0.2
+    fade_out: 0.3
+    lines:
+      - text: "VISIT YOURSITE.COM"
+        font: bebas
+        size: 88
+        color: white
+      - text: "FREE SHIPPING TODAY ONLY"
+        font: sans
+        size: 36
+        color: grey
+
+  - type: black
+    duration: 0.5

@@ -1,0 +1,223 @@
+# PRODUCT LAUNCH — 60s reveal template (Apple-esque)
+# Structure: tease → features → lifestyle → CTA
+# Style: clean, minimal, confidence. Let the product breathe.
+# Reference: Apple keynote product films, Nothing brand reveals
+#
+# Usage:
+#   python3 trailer_forge.py preview examples/product-launch.yaml
+#   python3 trailer_forge.py build   examples/product-launch.yaml
+
+title: "PRODUCT NAME — Launch Film"
+resolution: [1920, 1080]
+fps: 30
+color_grade: teal_orange    # subtle grade — let product colors pop
+film_grain: false           # never grain on product launches
+output: out/product_launch.mp4
+
+audio:
+  music: assets/music_cinematic.mp3    # orchestral build or minimal piano
+  music_vol: 0.55
+  voiceover: assets/vo_launch.mp3      # calm, confident VO (optional)
+  voice_vol: 0.95
+
+timeline:
+
+  # ── COLD OPEN — TEASE (0–8s) ────────────────────────────────────────────────
+
+  - type: black
+    duration: 1.5
+
+  # First glimpse — partial reveal from shadow or blur
+  - type: veo_clip
+    prompt: "mysterious product partially visible in dramatic shadow, single spotlight, black background, anticipation, luxurious product reveal, 4K macro detail"
+    file: clips/pl_tease_shadow.mp4
+    trim: [0, 6]
+    fade_in: 1.0
+    fade_out: 0.0
+
+  - type: black
+    duration: 0.5
+
+  - type: title_card
+    duration: 2.5
+    fade_in: 0.3
+    fade_out: 0.3
+    lines:
+      - text: "SOMETHING NEW"
+        font: sans
+        size: 48
+        color: grey
+
+  - type: black
+    duration: 1.0
+
+  # ── FEATURE REVEAL (8–28s) ──────────────────────────────────────────────────
+
+  # Full hero reveal
+  - type: veo_clip
+    prompt: "full product reveal, clean white studio background, smooth 360 rotation, premium commercial photography, dramatic key lighting, 4K"
+    file: clips/pl_hero_reveal.mp4
+    trim: [0, 6]
+    fade_in: 0.5
+    fade_out: 0.0
+
+  - type: black
+    duration: 0.4
+
+  - type: title_card
+    duration: 2.0
+    fade_in: 0.3
+    fade_out: 0.2
+    lines:
+      - text: "FEATURE ONE"
+        font: sans
+        size: 44
+        color: grey
+      - text: "HEADLINE BENEFIT"
+        font: bebas
+        size: 88
+        color: white
+
+  - type: black
+    duration: 0.3
+
+  # Feature detail — macro shot
+  - type: veo_clip
+    prompt: "extreme macro close-up of product craftsmanship, material textures, detail precision, soft dramatic studio lighting, product photography"
+    file: clips/pl_feature_macro.mp4
+    trim: [0, 5]
+    fade_in: 0.0
+    fade_out: 0.0
+
+  - type: black
+    duration: 0.3
+
+  - type: title_card
+    duration: 2.0
+    fade_in: 0.2
+    fade_out: 0.2
+    lines:
+      - text: "FEATURE TWO"
+        font: sans
+        size: 44
+        color: grey
+      - text: "ANOTHER BENEFIT"
+        font: bebas
+        size: 88
+        color: white
+
+  - type: black
+    duration: 0.3
+
+  # Feature in action
+  - type: veo_clip
+    prompt: "product being used in close-up, hands interaction, clean and elegant, soft focus background, commercial quality"
+    file: clips/pl_feature_action.mp4
+    trim: [0, 4]
+    fade_in: 0.0
+    fade_out: 0.0
+
+  - type: black
+    duration: 0.4
+
+  - type: title_card
+    duration: 2.0
+    fade_in: 0.2
+    fade_out: 0.2
+    lines:
+      - text: "FEATURE THREE"
+        font: sans
+        size: 44
+        color: grey
+      - text: "THIRD BENEFIT"
+        font: bebas
+        size: 88
+        color: white
+
+  - type: black
+    duration: 0.5
+
+  # ── LIFESTYLE (28–45s) ──────────────────────────────────────────────────────
+
+  - type: title_card
+    duration: 1.5
+    fade_in: 0.3
+    fade_out: 0.2
+    lines:
+      - text: "MADE FOR HOW YOU LIVE"
+        font: sans
+        size: 48
+        color: grey
+
+  - type: black
+    duration: 0.3
+
+  # Lifestyle shot 1 — aspirational setting
+  - type: veo_clip
+    prompt: "aspirational lifestyle, person in beautiful modern environment with product, golden hour, candid feel, premium brand aesthetic"
+    file: clips/pl_lifestyle_01.mp4
+    trim: [0, 5]
+    fade_in: 0.5
+    fade_out: 0.0
+
+  - type: veo_clip
+    prompt: "people enjoying life with product, genuine happiness, clean and premium, natural outdoor light, brand moment"
+    file: clips/pl_lifestyle_02.mp4
+    trim: [0, 4]
+    fade_in: 0.0
+    fade_out: 0.0
+
+  - type: veo_clip
+    prompt: "product in intimate personal moment, lifestyle authenticity, warm natural light, feels effortless and right"
+    file: clips/pl_lifestyle_03.mp4
+    trim: [0, 4]
+    fade_in: 0.0
+    fade_out: 0.5
+
+  - type: black
+    duration: 0.5
+
+  # ── BRAND STATEMENT (45–52s) ─────────────────────────────────────────────────
+
+  - type: title_card
+    duration: 3.0
+    fade_in: 0.5
+    fade_out: 0.3
+    lines:
+      - text: "BRAND TAGLINE GOES HERE."
+        font: sans
+        size: 52
+        color: grey
+
+  - type: black
+    duration: 1.0
+
+  # ── CTA + PRODUCT NAME (52–62s) ──────────────────────────────────────────────
+
+  # Final hero — clean product on white
+  - type: veo_clip
+    prompt: "final hero product shot, pure white or black background, centered composition, premium still life, luxury product photography"
+    file: clips/pl_final_hero.mp4
+    trim: [0, 5]
+    fade_in: 0.3
+    fade_out: 0.8
+
+  - type: black
+    duration: 0.8
+
+  - type: title_card
+    duration: 3.5
+    fade_in: 0.5
+    fade_out: 0.5
+    lines:
+      - text: "PRODUCT NAME"
+        font: bebas
+        size: 110
+        color: white
+      - text: "Available now  ·  yoursite.com"
+        font: sans
+        size: 34
+        color: grey
+
+  - type: black
+    duration: 1.5

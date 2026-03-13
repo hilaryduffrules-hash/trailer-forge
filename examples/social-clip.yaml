@@ -1,0 +1,107 @@
+# SOCIAL CLIP — 15s fast-paced social ad
+# Structure: single hook → single benefit → logo
+# Style: high energy, fast cuts, optimized for 9:16 vertical
+#
+# Usage:
+#   python3 trailer_forge.py preview examples/social-clip.yaml --format 9x16
+#   python3 trailer_forge.py build   examples/social-clip.yaml --format 9x16
+
+title: "SOCIAL HOOK"
+resolution: [1080, 1920]   # 9:16 default
+fps: 30
+color_grade: none
+film_grain: false
+output: out/social_clip_9x16.mp4
+
+audio:
+  music: assets/music_tiktok.mp3    # trending style, heavy bass
+  music_vol: 0.60
+  sfx: auto
+
+timeline:
+
+  # ── HOOK (0–3s) ─────────────────────────────────────────────────────────────
+
+  - type: title_card
+    duration: 1.0
+    fade_in: 0.0
+    fade_out: 0.0
+    lines:
+      - text: "WAIT."
+        font: bebas
+        size: 160
+        color: gold
+      - text: "STOP SCROLLING"
+        font: sans
+        size: 40
+        color: white
+
+  - type: black
+    duration: 0.1
+
+  # High impact clip
+  - type: veo_clip
+    prompt: "high energy fast cut, urban lifestyle, dynamic camera movement, vibrant colors, social media hook style"
+    file: clips/social_hook_01.mp4
+    trim: [0, 2.5]
+    fade_in: 0.0
+    fade_out: 0.0
+
+  - type: black
+    duration: 0.1
+
+  # ── BENEFIT (3–10s) ─────────────────────────────────────────────────────────
+
+  - type: title_card
+    duration: 1.5
+    lines:
+      - text: "THIS ONE TOOL"
+        font: sans
+        size: 52
+        color: white
+      - text: "SAVED ME HOURS"
+        font: bebas
+        size: 110
+        color: gold
+
+  - type: black
+    duration: 0.1
+
+  # Product benefit clip
+  - type: veo_clip
+    prompt: "close-up of person using app on phone, smiling, relief, speed, high tech, clean lighting"
+    file: clips/social_benefit_01.mp4
+    trim: [0, 3.5]
+    fade_in: 0.0
+    fade_out: 0.0
+
+  - type: black
+    duration: 0.1
+
+  # ── CTA (10–15s) ────────────────────────────────────────────────────────────
+
+  - type: title_card
+    duration: 1.2
+    lines:
+      - text: "GET STARTED"
+        font: bebas
+        size: 90
+        color: white
+      - text: "FOR FREE"
+        font: sans
+        size: 44
+        color: gold
+
+  - type: black
+    duration: 0.1
+
+  # Final brand clip
+  - type: veo_clip
+    prompt: "minimalist brand logo reveal, elegant, clean white background, professional"
+    file: clips/social_logo_reveal.mp4
+    trim: [0, 2.5]
+    fade_in: 0.0
+    fade_out: 0.3
+
+  - type: black
+    duration: 0.5
