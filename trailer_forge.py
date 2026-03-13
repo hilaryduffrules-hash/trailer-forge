@@ -883,6 +883,29 @@ def assemble(manifest_path, generate_missing=True, format_override=None):
                 render_black(W, H, str(bpng))
                 png_to_seg(str(bpng), dur, fps, str(seg_out), 0, 0)
                 print(f"— {dur:.1f}s [BLACK]")
+
+        elif kind == "kdenlive_sequence":
+            # Advanced integration: pass clips to Kdenlive CLI for transitions
+            dur = float(item.get("duration", 5.0))
+            kdenlive_bin = "/home/murphy/.venvs/cli-anything/bin/cli-anything-kdenlive"
+            if Path(kdenlive_bin).exists():
+                proj_file = work / f"kden_{i}.json"
+                clips = [str(base_dir / c) for c in item.get("clips", []) if (base_dir / c).exists()]
+                if clips:
+                    log(f"Kdenlive: {len(clips)} clips…")
+                    run(f'{kdenlive_bin} --project {proj_file} project create')
+                    for c in clips: run(f'{kdenlive_bin} --project {proj_file} bin add "{c}"')
+                    run(f'{kdenlive_bin} --project {proj_file} export render "{seg_out}" --duration {dur}')
+                    print(f"— {dur:.1f}s [Kdenlive]")
+                else:
+                    warn("Kdenlive: no clips found — substituting black")
+                    render_black(W, H, str(work/f"b_{i}.png"))
+                    png_to_seg(str(work/f"b_{i}.png"), dur, fps, str(seg_out), 0, 0)
+            else:
+                warn("Kdenlive CLI missing — substituting black")
+                render_black(W, H, str(work/f"b_{i}.png"))
+                png_to_seg(str(work/f"b_{i}.png"), dur, fps, str(seg_out), 0, 0)
+
         else:
             print(f"unknown type '{kind}', skipping"); continue
 
