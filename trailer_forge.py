@@ -9,14 +9,15 @@ Usage:
   python3 trailer_forge.py gen-clips trailer.yaml               # Veo clips only
   python3 trailer_forge.py deliver   out/video.mp4 --targets youtube telegram
   python3 trailer_forge.py export-srt whisper.json --output subs.srt
+  python3 trailer_forge.py quick --product "BTC Cards" --style direct-response --format 9x16
 
 Requirements:
-  pip install pillow pyyaml requests
+  pip install pillow pyyaml requests google-genai
   cd canvas_renderer && npm install   (Node.js renderer — better text quality)
   ffmpeg in PATH
 
 Optional:
-  GEMINI_API_KEY  → Veo 2 clip generation
+  GEMINI_API_KEY  → Veo 3.1 clip generation + ElevenLabs for quick mode
 """
 
 import os, sys, json, time, shutil, random, tempfile, subprocess, argparse
@@ -69,7 +70,23 @@ CANVAS_RENDERER = SCRIPT_DIR / "canvas_renderer" / "render_card.js"
 
 # ── Constants ─────────────────────────────────────────────────────────────────
 VEO_BASE  = "https://generativelanguage.googleapis.com/v1beta"
-VEO_MODEL = "veo-2.0-generate-001"
+VEO_MODEL = "veo-3.1-fast-generate-preview"   # upgraded from veo-2.0 (Phase 2)
+VEO_MODEL_FALLBACK = "veo-2.0-generate-001"   # fallback if 3.1 unavailable
+
+# ── Multi-format output presets (Phase 2) ─────────────────────────────────────
+FORMAT_PRESETS = {
+    "16x9": {"w": 1920, "h": 1080, "aspect_ratio": "16:9",
+             "label": "16:9 (YouTube/Desktop)"},
+    "9x16": {"w": 1080, "h": 1920, "aspect_ratio": "9:16",
+             "label": "9:16 (TikTok/Reels/Stories)",
+             "crop": True},
+    "1x1":  {"w": 1080, "h": 1080, "aspect_ratio": "1:1",
+             "label": "1:1 (Instagram Feed/LinkedIn)",
+             "crop": True},
+    "4x5":  {"w": 1080, "h": 1350, "aspect_ratio": "4:5",
+             "label": "4:5 (Facebook/Instagram Feed)",
+             "crop": True},
+}
 
 COLOR_GRADES = {
     "none":          "",
@@ -450,7 +467,7 @@ def _add_vignette(img, W, H, strength=140, power=1.8):
         vd.ellipse([W//2-r, H//2-r, W//2+r, H//2+r], fill=(0, 0, 0, alpha))
     return Image.alpha_composite(img.convert("RGBA"), vig).convert("RGB")
 
-def render_title_card(config, W, H, out_png):
+def render_title_card(config, W, H, out_png, font_scale=1.0):
     bar_h   = int(H * 0.1)
     safe_cy = (bar_h + H - bar_h) // 2
     max_w   = int(W * 0.84)
@@ -458,6 +475,9 @@ def render_title_card(config, W, H, out_png):
     img     = Image.new("RGB", (W, H), COLOURS["darkbg"])
     draw    = ImageDraw.Draw(img)
     lines   = config.get("lines", [])
+    # Apply font scaling for non-16:9 formats
+    lines   = [{**ln, "size": max(18, int(ln.get("size", 80) * font_scale))}
+               for ln in lines]
 
     if not lines:
         draw.rectangle([0, 0, W, bar_h],   fill=COLOURS["black"])
@@ -500,7 +520,7 @@ def render_title_card(config, W, H, out_png):
     img.save(out_png)
 
 
-def render_main_title(title, tagline, W, H, out_png):
+def render_main_title(title, tagline, W, H, out_png, font_scale=1.0):
     bar_h = int(H * 0.1)
     mid   = H // 2
     max_w = int(W * 0.9)
@@ -508,23 +528,23 @@ def render_main_title(title, tagline, W, H, out_png):
     draw  = ImageDraw.Draw(img)
 
     draw.text((W//2, int(H * 0.21)), "SUMMER  2026",
-              font=load_font("sans", 52), fill=COLOURS["gold"], anchor="mm")
+              font=load_font("sans", int(52 * font_scale)), fill=COLOURS["gold"], anchor="mm")
     rx1, rx2 = int(W * 0.18), int(W * 0.82)
     draw.line([(rx1, mid - 105), (rx2, mid - 105)], fill=COLOURS["gold"], width=2)
     draw.line([(rx1, mid + 100), (rx2, mid + 100)], fill=COLOURS["gold"], width=2)
     draw.text((W//2, mid - 62), "T H E",
-              font=load_font("bebas", 88), fill=(220, 220, 220), anchor="mm")
+              font=load_font("bebas", int(88 * font_scale)), fill=(220, 220, 220), anchor="mm")
 
-    main_font, _ = _autofit_font(draw, title, "bebas", 290, max_w)
+    main_font, _ = _autofit_font(draw, title, "bebas", int(290 * font_scale), max_w)
     img  = _text_glow(img, W//2, mid + 40, title, main_font, COLOURS["white"],
                       glow_color=(220, 220, 255), radius=30)
     draw = ImageDraw.Draw(img)
 
     if tagline:
         draw.text((W//2, int(H * 0.75)), f'"{tagline}"',
-                  font=load_font("sans", 36), fill=COLOURS["grey"], anchor="mm")
+                  font=load_font("sans", int(36 * font_scale)), fill=COLOURS["grey"], anchor="mm")
     draw.text((W//2, int(H * 0.82)), "RATED PG-13  ·  FOR CONTENT",
-              font=load_font("sans", 22), fill=(75, 75, 95), anchor="mm")
+              font=load_font("sans", int(22 * font_scale)), fill=(75, 75, 95), anchor="mm")
 
     img  = _add_vignette(img, W, H, strength=160, power=1.6)
     draw = ImageDraw.Draw(img)
@@ -565,11 +585,19 @@ def png_to_seg(png, duration, fps, out_mp4, fade_in=0.3, fade_out=0.3):
         f'{vf_arg} -c:v libx264 -preset fast -crf 20 -pix_fmt yuv420p "{out_mp4}"')
 
 def clip_to_seg(src, trim_start, trim_end, fps, W, H, out_mp4,
-                color_grade="none", fade_in=0.3, fade_out=0.3):
+                color_grade="none", fade_in=0.3, fade_out=0.3, crop_fill=False):
     duration = trim_end - trim_start
     bar_h    = int(H * 0.1)
     grade    = COLOR_GRADES.get(color_grade, "")
-    scale    = f"scale={W}:{H}:force_original_aspect_ratio=decrease,pad={W}:{H}:(ow-iw)/2:(oh-ih)/2"
+
+    if crop_fill:
+        # Crop-to-fill: scale up to cover full frame, crop center
+        # Used for portrait (9:16, 4:5) and square (1:1) formats
+        scale = (f"scale='if(gt(iw/ih,{W}/{H}),trunc(oh*a/2)*2,{W})':'if(gt(iw/ih,{W}/{H}),{H},trunc(ow/a/2)*2)',"
+                 f"crop={W}:{H}")
+    else:
+        scale = f"scale={W}:{H}:force_original_aspect_ratio=decrease,pad={W}:{H}:(ow-iw)/2:(oh-ih)/2"
+
     bars     = f"drawbox=y=0:w={W}:h={bar_h}:color=black:t=fill,drawbox=y={H-bar_h}:w={W}:h={bar_h}:color=black:t=fill"
     fi_f     = f"fade=t=in:st=0:d={fade_in}" if fade_in else ""
     fo_f     = f"fade=t=out:st={duration-fade_out}:d={fade_out}" if fade_out else ""
@@ -578,8 +606,20 @@ def clip_to_seg(src, trim_start, trim_end, fps, W, H, out_mp4,
         f'-r {fps} -vf "{vf}" '
         f'-c:v libx264 -preset fast -crf 20 -pix_fmt yuv420p "{out_mp4}"')
 
-# ── Veo 2 clip generation ──────────────────────────────────────────────────────
-def veo_generate(prompt, out_path, duration_sec=5):
+# ── Veo 3.1 clip generation (Phase 2 upgrade) ─────────────────────────────────
+def veo_generate(prompt, out_path, duration_sec=5, aspect_ratio="16:9",
+                 reference_image=None, model=None):
+    """
+    Generate a video clip with Veo 3.1 via google-genai SDK.
+
+    Args:
+        prompt:          Text prompt for the clip
+        out_path:        Output file path (.mp4)
+        duration_sec:    Duration in seconds (snapped to 4/6/8)
+        aspect_ratio:    "16:9" or "9:16" (auto-set by format)
+        reference_image: Path to reference image for image-to-video mode
+        model:           Override model name (default: VEO_MODEL)
+    """
     key = os.environ.get("GEMINI_API_KEY")
     if not key:
         warn("GEMINI_API_KEY not set — skipping Veo generation")
@@ -588,14 +628,98 @@ def veo_generate(prompt, out_path, duration_sec=5):
         log(f"Cache hit: {Path(out_path).name}")
         return out_path
 
-    log(f"Generating clip: {Path(out_path).stem} …")
+    # Snap duration to valid Veo values (4, 6, 8)
+    valid_durations = {4, 6, 8}
+    duration_sec = min(valid_durations, key=lambda x: abs(x - duration_sec))
+
+    model_name = model or VEO_MODEL
+    log(f"Generating clip [{model_name}]: {Path(out_path).stem} …")
+
+    try:
+        from google import genai
+        from google.genai import types as gentypes
+
+        client = genai.Client(api_key=key)
+
+        config_kwargs = {
+            "number_of_videos": 1,
+            "duration_seconds": duration_sec,
+            "aspect_ratio":     aspect_ratio,
+        }
+
+        input_image = None
+        if reference_image and Path(reference_image).exists():
+            with open(reference_image, "rb") as f:
+                img_data = f.read()
+            ext = Path(reference_image).suffix.lower()
+            mime_map = {".jpg": "image/jpeg", ".jpeg": "image/jpeg",
+                        ".png": "image/png", ".webp": "image/webp"}
+            input_image = gentypes.Image(
+                image_bytes=img_data,
+                mime_type=mime_map.get(ext, "image/png")
+            )
+            log(f"  Image-to-video: {Path(reference_image).name}")
+
+        config = gentypes.GenerateVideosConfig(**config_kwargs)
+
+        gen_kwargs = {"model": model_name, "prompt": prompt, "config": config}
+        if input_image:
+            gen_kwargs["image"] = input_image
+
+        operation = client.models.generate_videos(**gen_kwargs)
+
+        log(f"  Waiting for Veo…")
+        for attempt in range(60):
+            time.sleep(10)
+            operation = client.operations.get(operation)
+            if operation.done:
+                break
+            if attempt % 3 == 0:
+                log(f"  …still generating ({attempt*10}s)")
+
+        if not operation.done:
+            warn(f"Veo timeout: {Path(out_path).stem}")
+            return None
+
+        if not operation.response or not operation.response.generated_videos:
+            warn(f"No videos generated for {Path(out_path).stem}")
+            return None
+
+        video = operation.response.generated_videos[0].video
+        Path(out_path).parent.mkdir(parents=True, exist_ok=True)
+
+        if video.video_bytes:
+            Path(out_path).write_bytes(video.video_bytes)
+        elif video.uri:
+            url  = f"{video.uri}&key={key}" if "?" in video.uri else f"{video.uri}?key={key}"
+            data = requests.get(url).content
+            Path(out_path).write_bytes(data)
+        else:
+            warn(f"Veo returned no video data for {Path(out_path).stem}")
+            return None
+
+        size_kb = Path(out_path).stat().st_size // 1024
+        ok(f"{Path(out_path).name} ({size_kb}KB, {duration_sec}s)")
+        return out_path
+
+    except Exception as exc:
+        # Fallback to Veo 2.0 via REST if 3.1 fails
+        warn(f"Veo 3.1 error ({exc}) — falling back to Veo 2.0 REST")
+        return _veo2_generate_rest(prompt, out_path, duration_sec)
+
+
+def _veo2_generate_rest(prompt, out_path, duration_sec=5):
+    """Legacy Veo 2.0 REST fallback."""
+    key = os.environ.get("GEMINI_API_KEY")
+    if not key:
+        return None
     r = requests.post(
-        f"{VEO_BASE}/models/{VEO_MODEL}:predictLongRunning?key={key}",
+        f"{VEO_BASE}/models/{VEO_MODEL_FALLBACK}:predictLongRunning?key={key}",
         json={"instances": [{"prompt": prompt}],
               "parameters": {"aspectRatio": "16:9", "durationSeconds": duration_sec}}
     )
     if r.status_code != 200:
-        warn(f"Veo {r.status_code}: {r.text[:200]}")
+        warn(f"Veo2 {r.status_code}: {r.text[:200]}")
         return None
     op = r.json()["name"]
     for _ in range(60):
@@ -604,15 +728,14 @@ def veo_generate(prompt, out_path, duration_sec=5):
         if poll.get("done"):
             samples = poll.get("response", {}).get("generateVideoResponse", {}).get("generatedSamples", [])
             if not samples:
-                warn(f"No samples for {Path(out_path).stem}")
                 return None
             uri  = samples[0]["video"]["uri"]
             url  = f"{uri}&key={key}" if "?" in uri else f"{uri}?key={key}"
             data = requests.get(url).content
             Path(out_path).write_bytes(data)
-            ok(f"{Path(out_path).name} ({len(data)//1024}KB)")
+            ok(f"{Path(out_path).name} ({len(data)//1024}KB) [Veo2 fallback]")
             return out_path
-    warn(f"Veo timeout: {Path(out_path).stem}")
+    warn(f"Veo2 timeout: {Path(out_path).stem}")
     return None
 
 # ── Audio mixing ───────────────────────────────────────────────────────────────
@@ -643,7 +766,17 @@ def mix_audio_simple(music, out, duration, music_vol=0.35):
         f'-t {duration} -ar 44100 "{out}"')
 
 # ── Assembly ───────────────────────────────────────────────────────────────────
-def assemble(manifest_path, generate_missing=True):
+def assemble(manifest_path, generate_missing=True, format_override=None):
+    """
+    Assemble a trailer from a YAML manifest.
+
+    Args:
+        manifest_path:   Path to the YAML manifest file
+        generate_missing: Generate missing Veo clips if GEMINI_API_KEY is set
+        format_override: Override output format ('16x9','9x16','1x1','4x5').
+                         Overrides resolution in YAML. Enables crop-fill for
+                         portrait/square formats.
+    """
     manifest_path = Path(manifest_path).resolve()
     base_dir = manifest_path.parent
 
@@ -653,18 +786,43 @@ def assemble(manifest_path, generate_missing=True):
     W, H   = cfg.get("resolution", [1920, 1080])
     fps    = cfg.get("fps", 30)
     grade  = cfg.get("color_grade", "teal_orange")
-    out    = base_dir / cfg.get("output", "output.mp4")
     audio  = cfg.get("audio", {})
     grain  = cfg.get("film_grain", True)
     auto_sfx = audio.get("sfx", "none") == "auto"
+
+    # Apply format override (Phase 2 multi-format)
+    crop_fill   = False
+    fmt_label   = ""
+    veo_aspect  = "16:9"
+    font_scale  = 1.0
+
+    if format_override and format_override in FORMAT_PRESETS:
+        fmt = FORMAT_PRESETS[format_override]
+        W, H        = fmt["w"],  fmt["h"]
+        crop_fill   = fmt.get("crop", False)
+        veo_aspect  = fmt.get("aspect_ratio", "16:9")
+        fmt_label   = fmt["label"]
+        # Scale fonts relative to reference width of 1920
+        font_scale  = W / 1920.0
+    elif format_override and format_override not in FORMAT_PRESETS:
+        warn(f"Unknown format '{format_override}' — using YAML resolution. "
+             f"Valid: {', '.join(FORMAT_PRESETS)}")
+
+    # Compute output path; append format suffix if overriding
+    base_out = base_dir / cfg.get("output", "output.mp4")
+    if format_override and format_override != "16x9":
+        out = base_out.parent / f"{base_out.stem}_{format_override}{base_out.suffix}"
+    else:
+        out = base_out
 
     out.parent.mkdir(parents=True, exist_ok=True)
     work = Path(tempfile.mkdtemp(prefix="tf_"))
     timeline_items = cfg.get("timeline", [])
 
     segments, total_dur = [], 0.0
-    print(f"\n🎬 TRAILER FORGE")
-    print(f"   {W}×{H} @ {fps}fps  |  Grade: {grade}  |  Grain: {'on' if grain else 'off'}  |  SFX: {'auto' if auto_sfx else 'off'}\n")
+    fmt_display = f"  [{fmt_label}]" if fmt_label else ""
+    print(f"\n🎬 TRAILER FORGE{fmt_display}")
+    print(f"   {W}×{H} @ {fps}fps  |  Grade: {grade}  |  Grain: {'on' if grain else 'off'}  |  SFX: {'auto' if auto_sfx else 'off'}  |  Crop-fill: {'on' if crop_fill else 'off'}\n")
 
     for i, item in enumerate(timeline_items):
         kind    = item.get("type", "black")
@@ -685,7 +843,7 @@ def assemble(manifest_path, generate_missing=True):
             dur = float(item.get("duration", 3.0))
             png = work / f"title_{i}.png"
             if not render_with_node("title_card", item, W, H, str(png)):
-                render_title_card(item, W, H, str(png))
+                render_title_card(item, W, H, str(png), font_scale=font_scale)
             png_to_seg(str(png), dur, fps, str(seg_out), fi, fo)
             label = " | ".join(str(l.get("text","")) for l in item.get("lines",[]))
             print(f"— {dur:.1f}s — \"{label[:50]}\"")
@@ -696,7 +854,7 @@ def assemble(manifest_path, generate_missing=True):
             tagline = item.get("tagline", "")
             png     = work / f"main_{i}.png"
             if not render_with_node("main_title", {"title": title, "tagline": tagline}, W, H, str(png)):
-                render_main_title(title, tagline, W, H, str(png))
+                render_main_title(title, tagline, W, H, str(png), font_scale=font_scale)
             png_to_seg(str(png), dur, fps, str(seg_out), fi, fo)
             print(f"— {dur:.1f}s — \"{title}\"")
 
@@ -705,14 +863,19 @@ def assemble(manifest_path, generate_missing=True):
             trim   = item.get("trim", [0, 5])
             dur    = float(trim[1]) - float(trim[0])
             prompt = resolve_veo_prompt(item)
+            ref_img = item.get("reference_image")  # image-to-video support
 
             if not src.exists() and generate_missing:
                 src.parent.mkdir(parents=True, exist_ok=True)
-                veo_generate(prompt, str(src))
+                veo_generate(prompt, str(src),
+                             duration_sec=int(dur) if dur in (4,6,8) else 6,
+                             aspect_ratio=veo_aspect,
+                             reference_image=str(base_dir/ref_img) if ref_img else None)
 
             if src.exists():
                 clip_to_seg(str(src), float(trim[0]), float(trim[1]),
-                            fps, W, H, str(seg_out), grade, fi, fo)
+                            fps, W, H, str(seg_out), grade, fi, fo,
+                            crop_fill=crop_fill)
                 print(f"— {dur:.1f}s ← {src.name}")
             else:
                 warn(f"Missing: {src.name} — substituting black")
@@ -1474,6 +1637,319 @@ def assemble_broadcast(manifest_path, generate_missing=True):
     return result
 
 
+# ── Quick Mode — One-liner ad generator (Phase 2) ─────────────────────────────
+QUICK_STYLE_TEMPLATES = {
+    "direct-response": {
+        "color_grade": "none",
+        "film_grain":  False,
+        "prompts": [
+            "ultra-close product shot, hands holding {product}, clean white background, professional commercial, 4K",
+            "person looking directly at camera, excited expression, pointing at {product}, bright studio lighting",
+            "bold price tag or CTA text overlay, {product} hero shot, clean modern design, social media ad",
+        ],
+        "cards": [
+            {"lines": [{"text": "THE PROBLEM IS REAL", "font": "sans", "size": 72, "color": "white"}],
+             "duration": 1.5},
+            {"lines": [{"text": "{product}", "font": "bebas", "size": 100, "color": "gold"},
+                       {"text": "CHANGES EVERYTHING", "font": "sans", "size": 48, "color": "white"}],
+             "duration": 2.0},
+            {"lines": [{"text": "GET YOURS NOW", "font": "bebas", "size": 110, "color": "white"}],
+             "duration": 2.5},
+        ],
+    },
+    "product-launch": {
+        "color_grade": "teal_orange",
+        "film_grain":  False,
+        "prompts": [
+            "mysterious teaser shot of {product} partially revealed from shadow, dramatic spotlight, product photography",
+            "sleek macro shot of {product} features, detail textures, Apple-style product photography, pure white background",
+            "lifestyle shot of person using {product} in aspirational setting, golden hour, natural",
+        ],
+        "cards": [
+            {"lines": [{"text": "INTRODUCING", "font": "sans", "size": 52, "color": "grey"}],
+             "duration": 1.5},
+            {"lines": [{"text": "{product}", "font": "bebas", "size": 120, "color": "white"}],
+             "duration": 2.5},
+            {"lines": [{"text": "AVAILABLE NOW", "font": "sans", "size": 44, "color": "gold"}],
+             "duration": 2.0},
+        ],
+    },
+    "social": {
+        "color_grade": "none",
+        "film_grain":  False,
+        "prompts": [
+            "fast-cut hook shot, {product} hero angle, vibrant colors, social media style, vertical format",
+            "{product} in lifestyle context, aspirational, clean",
+            "bold CTA screen, {product} logo centered, clean white background",
+        ],
+        "cards": [
+            {"lines": [{"text": "STOP SCROLLING", "font": "bebas", "size": 90, "color": "white"}],
+             "duration": 1.2},
+            {"lines": [{"text": "{product}", "font": "bebas", "size": 100, "color": "gold"}],
+             "duration": 1.5},
+        ],
+    },
+    "testimonial": {
+        "color_grade": "vintage",
+        "film_grain":  True,
+        "prompts": [
+            "documentary-style talking head shot, person speaking authentically, natural window light",
+            "b-roll lifestyle footage showing {product} in real use, handheld, authentic, warm",
+            "satisfied customer close-up, genuine smile, soft natural lighting",
+        ],
+        "cards": [
+            {"lines": [{"text": '"THIS CHANGED MY LIFE"', "font": "serif", "size": 60, "color": "white"}],
+             "duration": 2.5},
+            {"lines": [{"text": "— REAL CUSTOMER", "font": "sans", "size": 32, "color": "grey"}],
+             "duration": 1.5},
+            {"lines": [{"text": "{product}", "font": "bebas", "size": 90, "color": "gold"},
+                       {"text": "TRY IT TODAY", "font": "sans", "size": 42, "color": "white"}],
+             "duration": 2.5},
+        ],
+    },
+}
+
+# Voiceover scripts for quick mode
+QUICK_VO_SCRIPTS = {
+    "direct-response": "You've been struggling with this problem long enough. {product} is the solution you've been waiting for. Try it now.",
+    "product-launch":  "Introducing {product}. Designed for those who demand more.",
+    "social":          "Meet {product}. Your life will never be the same.",
+    "testimonial":     "{product} — trusted by thousands. Yours to try today.",
+}
+
+
+def quick_generate(product, style="direct-response", output_format="9x16",
+                   duration=15, output_dir=None, generate_clips=True):
+    """
+    Generate a complete ad from just a product name — no YAML needed.
+
+    Quick mode pipeline:
+    1. Select template based on style
+    2. Build auto-prompts from product name
+    3. Generate 3 Veo 3.1 clips
+    4. Generate 1 ElevenLabs voiceover line
+    5. Assemble into complete ad
+
+    Args:
+        product:         Product/brand name (e.g. "BTC Cards")
+        style:           Ad style: direct-response, product-launch, social, testimonial
+        output_format:   Output format: 9x16, 16x9, 1x1, 4x5
+        duration:        Target duration in seconds (15 or 30)
+        output_dir:      Output directory (default: out/quick/)
+        generate_clips:  If False, skips Veo (for YAML preview only)
+    """
+    # Normalize style name
+    style = style.lower().replace("-", "").replace("_", "")
+    style_map = {
+        "directresponse": "direct-response",
+        "productlaunch":  "product-launch",
+        "social":         "social",
+        "socialclip":     "social",
+        "testimonial":    "testimonial",
+    }
+    style_key = style_map.get(style, "direct-response")
+    template  = QUICK_STYLE_TEMPLATES.get(style_key, QUICK_STYLE_TEMPLATES["direct-response"])
+
+    if output_format not in FORMAT_PRESETS:
+        warn(f"Unknown format '{output_format}' — defaulting to 9x16")
+        output_format = "9x16"
+
+    fmt     = FORMAT_PRESETS[output_format]
+    W, H    = fmt["w"], fmt["h"]
+    veo_ar  = fmt.get("aspect_ratio", "16:9")
+
+    output_dir = Path(output_dir or "out/quick")
+    output_dir.mkdir(parents=True, exist_ok=True)
+    clips_dir  = output_dir / "clips"
+    clips_dir.mkdir(exist_ok=True)
+
+    # Sanitize product name for filenames
+    product_slug = "".join(c if c.isalnum() or c in "-_" else "_" for c in product.lower())
+    out_mp4 = output_dir / f"{product_slug}_{style_key}_{output_format}.mp4"
+
+    print(f"\n⚡ QUICK MODE — trailer-forge")
+    print(f"   Product: {product}")
+    print(f"   Style:   {style_key}")
+    print(f"   Format:  {fmt['label']}")
+    print(f"   Target:  {duration}s\n")
+
+    # Build timeline from template
+    prompts  = [p.replace("{product}", product) for p in template["prompts"]]
+    cards    = []
+    for card in template["cards"]:
+        card_copy = dict(card)
+        card_copy["lines"] = [
+            {**ln, "text": ln["text"].replace("{product}", product)}
+            for ln in card["lines"]
+        ]
+        cards.append(card_copy)
+
+    # Time budget: split evenly between 3 clips + cards
+    clip_dur  = 5  # seconds per clip (using Veo 4s minimum, trim to fit)
+    if duration == 15:
+        # 15s: 3 clips × ~3s + 2 cards × ~1.5s = ~12s + 2 black = ~15s
+        clip_trim = [0, 3]
+        n_clips   = 3
+    elif duration == 30:
+        # 30s: 3 clips × ~5s + 3 cards × ~2.5s = ~22.5s + blacks = ~27s
+        clip_trim = [0, 5]
+        n_clips   = 3
+    else:
+        clip_trim = [0, max(3, min(8, duration // 4))]
+        n_clips   = min(3, len(prompts))
+
+    # Generate Veo clips
+    clip_files = []
+    for i, prompt in enumerate(prompts[:n_clips]):
+        clip_path = clips_dir / f"{product_slug}_clip_{i+1:02d}.mp4"
+        if generate_clips:
+            result = veo_generate(
+                prompt     = prompt,
+                out_path   = str(clip_path),
+                duration_sec = clip_dur,
+                aspect_ratio = veo_ar,
+            )
+            if result:
+                clip_files.append(str(clip_path))
+                ok(f"Clip {i+1}/3 ready")
+            else:
+                warn(f"Clip {i+1}/3 failed — will use black placeholder")
+                clip_files.append(None)
+        else:
+            clip_files.append(str(clip_path) if clip_path.exists() else None)
+
+    # Generate ElevenLabs voiceover
+    vo_script = QUICK_VO_SCRIPTS.get(style_key, "").replace("{product}", product)
+    vo_path   = output_dir / f"{product_slug}_vo.mp3"
+    vo_generated = False
+
+    if generate_clips and not vo_path.exists():
+        vo_generated = _generate_elevenlabs_vo(vo_script, str(vo_path))
+
+    # Build timeline
+    timeline = []
+    timeline.append({"type": "black", "duration": 0.3})
+
+    # Interleave clips and cards based on style
+    clip_idx = 0
+    card_idx = 0
+
+    if style_key == "direct-response":
+        # Hook clip → card → solution clip → card → CTA clip → card
+        pattern = ["clip", "card", "clip", "card", "clip", "card"]
+    elif style_key == "product-launch":
+        # Tease card → clip → feature clip → card → lifestyle clip → CTA card
+        pattern = ["card", "clip", "clip", "card", "clip", "card"]
+    elif style_key == "social":
+        # Fast: card → clip → clip → card → clip
+        pattern = ["card", "clip", "clip", "card", "clip"]
+    else:  # testimonial
+        # Quote card → clip → clip → card → clip → card
+        pattern = ["card", "clip", "clip", "card", "clip", "card"]
+
+    for step in pattern:
+        if step == "clip" and clip_idx < len(clip_files):
+            f = clip_files[clip_idx]
+            clip_idx += 1
+            timeline.append({
+                "type":     "veo_clip" if f else "black",
+                "file":     f or "",
+                "trim":     clip_trim,
+                "duration": clip_trim[1] - clip_trim[0] if not f else None,
+                "fade_in":  0.0,
+                "fade_out": 0.0,
+            } if f else {"type": "black", "duration": clip_trim[1] - clip_trim[0]})
+            timeline.append({"type": "black", "duration": 0.2})
+
+        elif step == "card" and card_idx < len(cards):
+            c = cards[card_idx]
+            card_idx += 1
+            timeline.append({**c, "type": "title_card", "fade_in": 0.2, "fade_out": 0.1})
+            timeline.append({"type": "black", "duration": 0.2})
+
+    # Build manifest dict
+    manifest = {
+        "title":       product,
+        "resolution":  [W, H],
+        "fps":         30,
+        "color_grade": template["color_grade"],
+        "film_grain":  template["film_grain"],
+        "output":      str(out_mp4),
+        "audio":       {},
+        "timeline":    [item for item in timeline if item is not None],
+    }
+
+    if vo_generated and vo_path.exists():
+        manifest["audio"]["voiceover"] = str(vo_path)
+        manifest["audio"]["voice_vol"] = 1.0
+
+    # Save manifest for transparency/editing
+    manifest_path = output_dir / f"{product_slug}_{style_key}.yaml"
+    with open(manifest_path, "w") as f:
+        yaml.dump(manifest, f, default_flow_style=False, sort_keys=False)
+    ok(f"Manifest saved: {manifest_path}")
+
+    # Assemble
+    print(f"\n  Assembling {out_mp4.name}…")
+    result = assemble(str(manifest_path), generate_missing=False,
+                      format_override=output_format)
+
+    if result and Path(result).exists():
+        size_kb = Path(result).stat().st_size // 1024
+        ok(f"\n⚡ Quick mode complete → {result} ({size_kb}KB)")
+        return result
+    else:
+        warn("Assembly failed — check logs above")
+        return None
+
+
+def _generate_elevenlabs_vo(script, out_path, voice_id="7Z12f9JBDnOACrQtUL9Q"):
+    """Generate ElevenLabs TTS voiceover for quick mode."""
+    import subprocess
+
+    # Try Bitwarden for API key first
+    key = None
+    try:
+        r = subprocess.run(
+            'export BW_SESSION=$(cat /tmp/bw_session 2>/dev/null); '
+            'bw list items --session "$BW_SESSION" --search "ElevenLabs API" 2>/dev/null '
+            '| python3 -c "import json,sys; items=json.load(sys.stdin); '
+            'print(items[0][\'login\'][\'password\'])" 2>/dev/null',
+            shell=True, capture_output=True, text=True, timeout=10
+        )
+        if r.returncode == 0 and r.stdout.strip():
+            key = r.stdout.strip()
+    except Exception:
+        pass
+
+    if not key:
+        key = os.environ.get("ELEVENLABS_API_KEY")
+
+    if not key:
+        warn("ElevenLabs API key not found — skipping voiceover")
+        return False
+
+    try:
+        url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
+        headers = {"xi-api-key": key, "Content-Type": "application/json"}
+        payload = {
+            "text": script,
+            "model_id": "eleven_monolingual_v1",
+            "voice_settings": {"stability": 0.5, "similarity_boost": 0.75}
+        }
+        r = requests.post(url, json=payload, headers=headers, timeout=30)
+        if r.status_code == 200:
+            Path(out_path).write_bytes(r.content)
+            ok(f"Voiceover: {Path(out_path).name}")
+            return True
+        else:
+            warn(f"ElevenLabs {r.status_code}: {r.text[:100]}")
+            return False
+    except Exception as exc:
+        warn(f"ElevenLabs error: {exc}")
+        return False
+
+
 # ── CLI ────────────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
     p = argparse.ArgumentParser(
@@ -1493,14 +1969,25 @@ commands:
   broadcast   Assemble with broadcast elements (countdown, color bars, lower thirds)
   clip        YouTube → transcribe → detect → social-ready clips
   chapters    Auto-generate YouTube chapter markers from a video file
+  quick       One-liner ad generator (no YAML needed)
+
+format options (--format):
+  16x9        1920×1080 — YouTube, desktop (default)
+  9x16        1080×1920 — TikTok, Instagram Reels, Stories
+  1x1         1080×1080 — Instagram feed, LinkedIn
+  4x5         1080×1350 — Facebook/Instagram feed
+
+quick mode examples:
+  trailer-forge quick --product "BTC Cards" --style direct-response --format 9x16 --duration 15
+  trailer-forge quick --product "My App" --style product-launch --format 16x9 --duration 30
         """
     )
     p.add_argument("command",
                    choices=["build","assemble","gen-clips","preview",
                             "deliver","export-srt","export-me",
-                            "storyboard","broadcast","clip","chapters"])
-    p.add_argument("manifest",
-                   help="YAML manifest / video path / Whisper JSON / YouTube URL")
+                            "storyboard","broadcast","clip","chapters","quick"])
+    p.add_argument("manifest", nargs="?",
+                   help="YAML manifest / video path / Whisper JSON / YouTube URL (not needed for quick)")
     p.add_argument("--targets", nargs="+", default=["youtube", "telegram"],
                    metavar="PLATFORM",
                    help=f"Delivery platforms. Options: {', '.join(PLATFORM_SPECS)}")
@@ -1510,14 +1997,26 @@ commands:
                    help="Storyboard columns (default: 4)")
     p.add_argument("--top",    type=int, default=3,
                    help="Clipper: number of clips to extract (default: 3)")
-    p.add_argument("--format", choices=["vertical","vertical_blur","horizontal"],
-                   default="vertical_blur",
-                   help="Clipper: output format (default: vertical_blur 9:16 blurred bg)")
+    # Multi-format output (Phase 2)
+    p.add_argument("--format",
+                   help="Output format: 16x9 (default), 9x16 (TikTok/Reels), 1x1 (Instagram), 4x5 (FB feed). "
+                        "For clip subcommand: vertical, vertical_blur, horizontal.",
+                   default=None)
     p.add_argument("--zoom", type=float, default=1.0,
                    help="Clipper: zoom factor for vertical_blur foreground (default: 1.0). "
                         "Use 1.5-2.0 for talking-head video.")
     p.add_argument("--no-cache", action="store_true",
                    help="Clipper: disable transcript caching (use for concurrent runs)")
+    # Quick mode (Phase 2)
+    p.add_argument("--product", default=None,
+                   help="[quick] Product/brand name (e.g. 'BTC Cards')")
+    p.add_argument("--style", default="direct-response",
+                   choices=["direct-response","product-launch","social","testimonial"],
+                   help="[quick] Ad style template (default: direct-response)")
+    p.add_argument("--duration", type=int, default=15,
+                   help="[quick] Target duration in seconds: 15 or 30 (default: 15)")
+    p.add_argument("--no-generate", action="store_true",
+                   help="[quick] Skip Veo generation, preview YAML only")
     # chapters subcommand options
     p.add_argument("--silence", type=float, default=2.0,
                    help="[chapters] Minimum silence gap in seconds (default: 2.0)")
@@ -1527,22 +2026,46 @@ commands:
                    help="[chapters] Max words to use for chapter label (default: 5)")
     args = p.parse_args()
 
-    if   args.command == "preview":    preview(args.manifest)
-    elif args.command == "assemble":   assemble(args.manifest, generate_missing=False)
-    elif args.command == "build":      assemble(args.manifest, generate_missing=True)
-    elif args.command == "gen-clips":  assemble(args.manifest, generate_missing=True)
-    elif args.command == "deliver":    deliver(args.manifest, targets=args.targets)
-    elif args.command == "export-srt": export_srt(args.manifest, args.output or "output.srt")
-    elif args.command == "export-me":  export_me(args.manifest, args.output)
-    elif args.command == "storyboard": storyboard(args.manifest, args.output, cols=args.cols)
-    elif args.command == "broadcast":  assemble_broadcast(args.manifest, generate_missing=False)
+    # Determine effective format for non-quick commands
+    fmt_arg = args.format
+
+    if   args.command == "preview":
+        if not args.manifest: p.error("preview requires a manifest file")
+        preview(args.manifest)
+    elif args.command == "assemble":
+        if not args.manifest: p.error("assemble requires a manifest file")
+        assemble(args.manifest, generate_missing=False, format_override=fmt_arg)
+    elif args.command == "build":
+        if not args.manifest: p.error("build requires a manifest file")
+        assemble(args.manifest, generate_missing=True, format_override=fmt_arg)
+    elif args.command == "gen-clips":
+        if not args.manifest: p.error("gen-clips requires a manifest file")
+        assemble(args.manifest, generate_missing=True, format_override=fmt_arg)
+    elif args.command == "deliver":
+        if not args.manifest: p.error("deliver requires a video file")
+        deliver(args.manifest, targets=args.targets)
+    elif args.command == "export-srt":
+        if not args.manifest: p.error("export-srt requires a Whisper JSON file")
+        export_srt(args.manifest, args.output or "output.srt")
+    elif args.command == "export-me":
+        if not args.manifest: p.error("export-me requires a manifest file")
+        export_me(args.manifest, args.output)
+    elif args.command == "storyboard":
+        if not args.manifest: p.error("storyboard requires a manifest file")
+        storyboard(args.manifest, args.output, cols=args.cols)
+    elif args.command == "broadcast":
+        if not args.manifest: p.error("broadcast requires a manifest file")
+        assemble_broadcast(args.manifest, generate_missing=False)
     elif args.command == "clip":
+        if not args.manifest: p.error("clip requires a video/URL argument")
         sys.path.insert(0, str(SCRIPT_DIR / "tools"))
         from clipper import run_clipper
-        run_clipper(args.manifest, top_n=args.top, fmt=args.format,
+        clip_fmt = fmt_arg if fmt_arg in ("vertical","vertical_blur","horizontal") else "vertical_blur"
+        run_clipper(args.manifest, top_n=args.top, fmt=clip_fmt,
                     zoom=args.zoom, out_dir=Path(args.output or "out/clips"),
                     cache=not getattr(args, "no_cache", False))
     elif args.command == "chapters":
+        if not args.manifest: p.error("chapters requires a video file")
         sys.path.insert(0, str(SCRIPT_DIR / "tools"))
         from chapters import run_chapters
         run_chapters(
@@ -1550,4 +2073,15 @@ commands:
             min_silence_sec = args.silence,
             noise_db        = args.noise_db,
             max_label_words = args.label_words,
+        )
+    elif args.command == "quick":
+        if not args.product:
+            p.error("quick mode requires --product (e.g. --product 'BTC Cards')")
+        quick_generate(
+            product        = args.product,
+            style          = args.style,
+            output_format  = fmt_arg or "9x16",
+            duration       = args.duration,
+            output_dir     = args.output,
+            generate_clips = not args.no_generate,
         )
