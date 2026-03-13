@@ -1897,7 +1897,7 @@ def quick_generate(product, style="direct-response", output_format="9x16",
         "fps":         30,
         "color_grade": template["color_grade"],
         "film_grain":  template["film_grain"],
-        "output":      str(out_mp4),
+        "output":      f"{product_slug}_{style_key}.mp4",
         "audio":       {},
         "timeline":    [item for item in timeline if item is not None],
     }
