@@ -470,3 +470,105 @@ Open issues for:
 `⚡ hilaryduffrules@coinos.io`
 
 </div>
+
+---
+
+## Comic/Illustration Video Workflow
+
+A pattern for animating still comic pages into cinematic video without destroying the original artwork.
+
+### Core Principle: Art Preservation First
+
+Comic pages are finished art. The goal is to bring them *alive* — subtle motion, atmosphere, breath — not to transform or morph them. Every decision in this workflow flows from that principle.
+
+### Veo: Start Frame + End Frame for Page Animation
+
+When animating a still page with Veo:
+- **Pass the same image as both `start_frame` AND `end_frame`** — this constrains Veo to stay on the page
+- Without an end frame, Veo treats the image as a launch point and will freely transform it (page-ripping, morphing, chaos)
+- With the same image on both ends, Veo applies only atmospheric animation: subtle light shifts, particle drift, gentle camera breath
+
+**Prompt formula that works:**
+```
+Atmospheric animation only. No changes to artwork. Camera completely still.
+Gentle [light/dust/smoke/bokeh] in the scene. The illustration remains intact.
+```
+
+**Prompt language that fails:**
+- "transforms into" → causes page-ripping chaos
+- "reveals" / "morphs" / "emerges" → Veo treats this as permission to destroy the art
+- Any camera movement instruction (pan, push, pull) → destabilizes the frame
+
+**When to use prompts-only vs start+end frames:**
+| Use case | Approach |
+|----------|----------|
+| Animate a still page (preserve art) | Same image as both start AND end frame |
+| Atmospheric bridge shot (no source art) | Prompts only |
+| Transition shot between pages | Prompts only |
+| Hero shot with subtle motion | Same image as both start AND end frame |
+
+### Color Grading Rules
+
+- **Never apply color grades to source art clips** — the artist's color palette is intentional. Grading it introduces color casts that fight the original work.
+- **Atmospheric/bridge shots: use warm grade** to separate them visually from the pages
+- Warm atmospheric grade: `colorchannelmixer=rr=1.05:gg=0.98:bb=0.90`
+- Film grain: apply consistently across *all* clips (art + atmospheric) for cohesion
+
+### Panel Crop: Strip White Margins → Scale to 9:16
+
+Comic pages often have white margins/gutters. For 9:16 output:
+
+```python
+from PIL import Image
+import numpy as np
+
+def find_content_bounds(img_path, threshold=240):
+    """Strip white margins and return content bounding box."""
+    img = Image.open(img_path).convert('RGB')
+    arr = np.array(img)
+    # Mask: pixels that are NOT white
+    mask = np.any(arr < threshold, axis=2)
+    rows = np.where(mask.any(axis=1))[0]
+    cols = np.where(mask.any(axis=0))[0]
+    if not len(rows) or not len(cols):
+        return (0, 0, img.width, img.height)
+    return (cols[0], rows[0], cols[-1]+1, rows[-1]+1)
+
+def crop_to_9x16(img_path, out_path):
+    img = Image.open(img_path)
+    x0, y0, x1, y1 = find_content_bounds(img_path)
+    content = img.crop((x0, y0, x1, y1))
+    # Scale to fit 9:16 (1080x1920) with black bars if needed
+    target_w, target_h = 1080, 1920
+    content.thumbnail((target_w, target_h), Image.LANCZOS)
+    canvas = Image.new('RGB', (target_w, target_h), (0, 0, 0))
+    paste_x = (target_w - content.width) // 2
+    paste_y = (target_h - content.height) // 2
+    canvas.paste(content, (paste_x, paste_y))
+    canvas.save(out_path)
+```
+
+### Naming Convention
+
+```
+clips/
+├── veo_page_01.mp4      # Animated comic page (art preserved)
+├── veo_page_02.mp4
+├── veo_atmos_01.mp4     # Atmospheric bridge shot
+├── veo_atmos_02.mp4
+└── veo_transition_01.mp4  # Hard transition or connecting shot
+```
+
+### xfade Assembly Pipeline
+
+Pre-process all clips to common spec → compute xfade offsets in Python → build single filtergraph → audio mix → final encode.
+
+See `docs/comic-workflow.md` for the full step-by-step pipeline.
+
+### Reference Project
+
+Satoshi's Heroes comic teaser (2026-03-25):
+- **Output:** `btc-cards-comic-reveal-v6.mp4` (29s, 9:16)
+- **Music:** Kevin MacLeod "At Rest" (sparse piano)
+- **Pipeline:** Veo animated pages + atmospheric shots + ffmpeg xfade assembly
+- **Iterations:** v1–v6 (v6 = final, color balanced, film grain consistent)
