@@ -23,5 +23,16 @@ Thumbs.db
 
 # Secrets — never commit
 .env
+.env.*
+*.env
 *.key
+*.pem
+*.secret
 *api_key*
+*apikey*
+*_secret*
+secrets/
+keys/
+credentials.json
+token*.json
+*token*key*
