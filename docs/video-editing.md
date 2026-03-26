@@ -196,3 +196,87 @@ Credit costs: ~12 credits/sec at 720p, ~20/sec at 1080p. Media auto-deletes afte
 | Card spin trims | <card>_ftb_trim.mp4 | boomers_ftb_trim.mp4 |
 | End frames (no margins) | endframe_*.jpg | endframe_color.jpg |
 
+
+---
+
+## Seamless Card Spin Stitch — Velocity Matching Method ✅ PROVEN
+
+**The problem with naive trimming:** Both front→back and back→front clips slow down at the back face (card square-on to camera). Cutting at matching angles still produces a visible lurch because the speeds differ.
+
+**The correct approach — pixel velocity measurement:**
+
+```python
+import subprocess, numpy as np
+from PIL import Image
+
+def mean_diff(f1, f2):
+    """Pixel displacement between frames = proxy for rotation speed."""
+    a = np.array(Image.open(f1).convert("L"), dtype=float)
+    b = np.array(Image.open(f2).convert("L"), dtype=float)
+    return np.mean(np.abs(a - b))
+
+# 1. Extract frames around end of clip A and start of clip B
+for i in range(150, 180):
+    subprocess.run(["ffmpeg", "-i", "clip_a.mp4",
+        "-vf", f"select=eq(n\\,{i})", "-vframes", "1", "-q:v", "2",
+        f"frames/a_{i:03d}.jpg", "-y"], capture_output=True)
+
+for i in range(0, 30):
+    subprocess.run(["ffmpeg", "-i", "clip_b.mp4",
+        "-vf", f"select=eq(n\\,{i})", "-vframes", "1", "-q:v", "2",
+        f"frames/b_{i:03d}.jpg", "-y"], capture_output=True)
+
+# 2. Measure speed at each frame
+print("Clip A tail speeds:")
+for i in range(150, 178):
+    diff = mean_diff(f"frames/a_{i:03d}.jpg", f"frames/a_{i+1:03d}.jpg")
+    print(f"  frame {i}→{i+1}: {diff:.2f}")
+
+print("Clip B head speeds:")
+for i in range(0, 20):
+    diff = mean_diff(f"frames/b_{i:03d}.jpg", f"frames/b_{i+1:03d}.jpg")
+    print(f"  frame {i}→{i+1}: {diff:.2f}")
+
+# 3. Find cut frame in clip A where speed matches clip B frame 0
+# Look for where clip A speed ≈ clip B speed at frame 0-5
+# In card spin: this is typically where card is square-on (minimum speed ~1.0-1.5)
+```
+
+### Typical card spin speed profile
+| Point | Speed (mean pixel diff) |
+|-------|------------------------|
+| Card edge (fastest) | 5.0-8.0 |
+| Card at 45° | 3.0-5.0 |
+| Card square-on (slowest) | 0.8-1.5 |
+
+**Cut point:** Find frame in clip A where speed ≈ speed of clip B frame 0-3.
+For symmetric clips (same decel/accel curve), this is near the minimum speed.
+
+### Assembly with dissolve
+```bash
+# Cut clip A at matched frame, keep full clip B, dissolve through join
+FTB_CUT_FRAME=171      # where ftb speed ≈ btf frame-0 speed
+XFADE_FRAMES=8         # 8-frame dissolve (0.33s at 24fps) — enough to hide blend
+FPS=24
+
+ftb_dur=$(echo "scale=6; $FTB_CUT_FRAME/$FPS" | bc)
+xfade_dur=$(echo "scale=6; $XFADE_FRAMES/$FPS" | bc)
+offset=$(echo "scale=6; $ftb_dur - $xfade_dur" | bc)
+
+# Trim clip A to cut frame
+ffmpeg -i clip_a.mp4 -vf "trim=end_frame=${FTB_CUT_FRAME},setpts=PTS-STARTPTS" \
+  -c:v libx264 -crf 14 -preset fast -an clip_a_trim.mp4 -y
+
+# Assemble with xfade
+ffmpeg -i clip_a_trim.mp4 -i clip_b.mp4 \
+  -filter_complex "[0:v][1:v]xfade=transition=fade:duration=${xfade_dur}:offset=${offset}[v]" \
+  -map "[v]" -c:v libx264 -crf 16 -preset medium -movflags +faststart -an \
+  output_seamless.mp4 -y
+```
+
+**Why this works:**
+- The dissolve covers the 1-2 frame angle mismatch that remains after speed matching
+- At minimum speed, consecutive frames are nearly identical — the dissolve is invisible
+- 8 frames (0.33s) is enough to smooth the transition without looking like a fade
+
+**Validated on:** Boomers in Bitcoin #32 card spin (TAG graded slab, 1920x1080 24fps)
